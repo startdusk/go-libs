@@ -12,19 +12,22 @@ var _ Server = &HTTPServer{}
 type Server interface {
 	http.Handler
 	Start(addr string) error
-	// 可以看到该函数不支持多个HandleFunc(handleFunc ...HandleFunc)
-	// 因为用户可以传nil, 而且多个HandleFunc之间如果要中断, 必须提供像gin类似的Abort()方法
-	// 比较复杂, 且容易忘记添加
-	addRoute(method string, path string, handleFunc HandleFunc)
 }
 
 type HTTPServer struct {
+	*router
+}
+
+func NewHTTPServer() *HTTPServer {
+	return &HTTPServer{
+		router: newRouter(),
+	}
 }
 
 // ServeHTTP HTTPServer 处理请求入口
 func (h *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := &Context {
-		Req: r,
+	ctx := &Context{
+		Req:  r,
 		Resp: w,
 	}
 
@@ -47,11 +50,7 @@ func (h *HTTPServer) Get(path string, handleFunc HandleFunc) {
 	h.addRoute(http.MethodGet, path, handleFunc)
 }
 
-func (h *HTTPServer) addRoute(method string, path string, handleFunc HandleFunc) {
-
-}
-
-func (h *HTTPServer) serve(ctx *Context) error { 
+func (h *HTTPServer) serve(ctx *Context) error {
 	// 查找路由, 并且执行命中的业务逻辑
-	
+	return nil
 }
