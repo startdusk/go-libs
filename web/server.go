@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-type HandleFunc func(ctx Context)
+type HandleFunc func(ctx *Context)
 
 var _ Server = &HTTPServer{}
 
@@ -15,7 +15,7 @@ type Server interface {
 }
 
 type HTTPServer struct {
-	*router
+	router
 }
 
 func NewHTTPServer() *HTTPServer {
@@ -50,7 +50,13 @@ func (h *HTTPServer) Get(path string, handleFunc HandleFunc) {
 	h.addRoute(http.MethodGet, path, handleFunc)
 }
 
-func (h *HTTPServer) serve(ctx *Context) error {
+func (h *HTTPServer) serve(ctx *Context) {
 	// 查找路由, 并且执行命中的业务逻辑
-	return nil
+	node, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
+	if !ok || node.handler == nil {
+		ctx.Resp.WriteHeader(http.StatusNotFound)
+		ctx.Resp.Write([]byte(http.StatusText(http.StatusNotFound)))
+		return
+	}
+	node.handler(ctx)
 }

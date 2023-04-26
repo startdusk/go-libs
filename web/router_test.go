@@ -39,7 +39,7 @@ func TestRouter_addRoute(t *testing.T) {
 		},
 	}
 
-	var mockHandler HandleFunc = func(ctx Context) {}
+	var mockHandler HandleFunc = func(ctx *Context) {}
 	r := newRouter()
 	for _, route := range routes {
 		r.addRoute(route.method, route.path, mockHandler)
@@ -94,7 +94,7 @@ func TestRouter_addRoute(t *testing.T) {
 		},
 	}
 
-	msg, ok := wantRouter.equal(r)
+	msg, ok := wantRouter.equal(&r)
 
 	assert.True(t, ok, msg)
 
@@ -157,7 +157,7 @@ func TestRouter_findRoute(t *testing.T) {
 		},
 	}
 
-	var mockHandler HandleFunc = func(ctx Context) {}
+	var mockHandler HandleFunc = func(ctx *Context) {}
 	r := newRouter()
 	for _, route := range routes {
 		r.addRoute(route.method, route.path, mockHandler)
