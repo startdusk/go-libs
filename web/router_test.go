@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-func TestRouter_AddRoute(t *testing.T) {
-	cases := []struct {
+func TestRouter_addRoute(t *testing.T) {
+	routes := []struct {
 		method string
 		path   string
 	}{
@@ -41,7 +41,7 @@ func TestRouter_AddRoute(t *testing.T) {
 
 	var mockHandler HandleFunc = func(ctx Context) {}
 	r := newRouter()
-	for _, route := range cases {
+	for _, route := range routes {
 		r.addRoute(route.method, route.path, mockHandler)
 	}
 
@@ -124,6 +124,133 @@ func TestRouter_AddRoute(t *testing.T) {
 		panicReRegisterRouter.addRoute(http.MethodGet, "/a/b/c", mockHandler)
 		panicReRegisterRouter.addRoute(http.MethodGet, "/a/b/c", mockHandler)
 	}, "路由[/a/b/c]重复注册")
+}
+
+func TestRouter_findRoute(t *testing.T) {
+	routes := []struct {
+		method string
+		path   string
+	}{
+		{
+			method: http.MethodGet,
+			path:   "/user/home",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/order/detail",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/order/create",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/login",
+		},
+	}
+
+	var mockHandler HandleFunc = func(ctx Context) {}
+	r := newRouter()
+	for _, route := range routes {
+		r.addRoute(route.method, route.path, mockHandler)
+	}
+
+	cases := []struct {
+		name      string
+		method    string
+		path      string
+		wantFound bool
+		wantNode  *node
+	}{
+		{
+			name:      "method找不到",
+			method:    http.MethodDelete,
+			path:      "/找不到",
+			wantFound: false,
+		},
+		{
+			name:      "path找不到",
+			method:    http.MethodGet,
+			path:      "/找不到",
+			wantFound: false,
+		},
+		{
+			name:      "命中, 但该路由无handler",
+			method:    http.MethodGet,
+			path:      "/order",
+			wantFound: true,
+			wantNode: &node{
+				path: "order",
+				children: map[string]*node{
+					"detail": &node{
+						handler: mockHandler,
+						path:    "detail",
+					},
+				},
+			},
+		},
+		{
+			name:      "命中",
+			method:    http.MethodGet,
+			path:      "/order/detail",
+			wantFound: true,
+			wantNode: &node{
+				handler: mockHandler,
+				path:    "detail",
+			},
+		},
+		{
+			name:      "命中根节点'/'",
+			method:    http.MethodGet,
+			path:      "/",
+			wantFound: true,
+			wantNode: &node{
+				path:    "/",
+				handler: mockHandler,
+				children: map[string]*node{
+					"user": &node{
+						path:    "user",
+						handler: mockHandler,
+						children: map[string]*node{
+							"home": &node{
+								path:    "home",
+								handler: mockHandler,
+							},
+						},
+					},
+					"order": &node{
+						path: "order",
+						children: map[string]*node{
+							"detail": &node{
+								path:    "detail",
+								handler: mockHandler,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			node, found := r.findRoute(c.method, c.path)
+			assert.Equal(t, c.wantFound, found)
+			if !c.wantFound {
+				return
+			}
+			msg, ok := c.wantNode.equal(node)
+			assert.True(t, ok, msg)
+		})
+	}
 }
 
 // 比较两个router是否相等

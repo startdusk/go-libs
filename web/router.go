@@ -52,7 +52,7 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 		return
 	}
 
-	trimPath := strings.Trim(path, "/")
+	trimPath := path[1:]
 	segs := strings.Split(trimPath, "/")
 	for _, seg := range segs {
 		if seg == "" {
@@ -65,6 +65,26 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 		panic("路由[" + path + "]重复注册")
 	}
 	root.handler = handleFunc
+}
+
+func (r *router) findRoute(method string, path string) (*node, bool) {
+	root, ok := r.trees[method]
+	if !ok {
+		return nil, false
+	}
+	if path == "/" {
+		return root, true
+	}
+	path = strings.Trim(path, "/")
+	segs := strings.Split(path, "/")
+	for _, seg := range segs {
+		child, found := root.childOf(seg)
+		if !found {
+			return nil, false
+		}
+		root = child
+	}
+	return root, true
 }
 
 type node struct {
@@ -89,4 +109,12 @@ func (n *node) childOrCreate(seg string) *node {
 		n.children[seg] = child
 	}
 	return child
+}
+
+func (n *node) childOf(path string) (*node, bool) {
+	if n.children == nil {
+		return nil, false
+	}
+	child, ok := n.children[path]
+	return child, ok
 }
