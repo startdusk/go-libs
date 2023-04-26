@@ -21,13 +21,35 @@ func newRouter() *router {
 // 可以看到该函数不支持多个HandleFunc(handleFunc ...HandleFunc)
 // 因为用户可以传nil, 而且多个HandleFunc之间如果要中断, 必须提供像gin类似的Abort()方法
 // 比较复杂, 且容易忘记添加
+// method不检验的原因: 我们不暴露addRoute方法
+// handleFunc不校验的原因: 如果用户传了nil, 那就相当于没有注册
 func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
+	if path == "" {
+		panic("路由[" + path + "]格式错误, 路由为空!")
+	}
+
+	if path[0] != '/' {
+		panic("路由[" + path + "]格式错误, 不以 `/` 开头!")
+	}
+
+	if path != "/" && path[len(path)-1] == '/' {
+		panic("路由[" + path + "]格式错误, 不能以 `/` 结尾!")
+	}
+
 	root, ok := r.trees[method]
 	if !ok {
 		root = &node{
 			path: "/",
 		}
 		r.trees[method] = root
+	}
+
+	if path == "/" {
+		if root.handler != nil {
+			panic("路由[" + path + "]重复注册")
+		}
+		root.handler = handleFunc
+		return
 	}
 
 	trimPath := strings.Trim(path, "/")
@@ -38,6 +60,9 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 		}
 		child := root.childOrCreate(seg)
 		root = child
+	}
+	if root.handler != nil {
+		panic("路由[" + path + "]重复注册")
 	}
 	root.handler = handleFunc
 }
