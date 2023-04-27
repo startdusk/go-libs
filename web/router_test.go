@@ -30,12 +30,32 @@ func TestRouter_addRoute(t *testing.T) {
 			path:   "/order/detail",
 		},
 		{
+			method: http.MethodGet,
+			path:   "/order/*",
+		},
+		{
 			method: http.MethodPost,
 			path:   "/order/create",
 		},
 		{
 			method: http.MethodPost,
 			path:   "/login",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/abc",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/abc/*",
 		},
 	}
 
@@ -68,6 +88,10 @@ func TestRouter_addRoute(t *testing.T) {
 								path:    "detail",
 								handler: mockHandler,
 							},
+						},
+						starChild: &node{
+							path:    "*",
+							handler: mockHandler,
 						},
 					},
 				},
@@ -278,6 +302,13 @@ func (n *node) equal(otherNode *node) (string, bool) {
 
 	if len(n.children) != len(otherNode.children) {
 		return fmt.Sprintf("节点children数量不相等"), false
+	}
+
+	if n.starChild != nil {
+		msg, ok := n.starChild.equal(otherNode.starChild)
+		if !ok {
+			return msg, ok
+		}
 	}
 
 	if reflect.ValueOf(n.handler) != reflect.ValueOf(otherNode.handler) {

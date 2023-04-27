@@ -90,13 +90,24 @@ func (r *router) findRoute(method string, path string) (*node, bool) {
 type node struct {
 	path string
 
+	// 静态匹配的节点
 	// 子path到子节点的映射
 	children map[string]*node
+
+	// 通配符节点
+	starChild *node
 
 	handler HandleFunc
 }
 
 func (n *node) childOrCreate(seg string) *node {
+	if seg == "*" {
+		child := &node{
+			path: seg,
+		}
+		n.starChild = child
+		return child
+	}
 	if n.children == nil {
 		n.children = make(map[string]*node)
 	}
