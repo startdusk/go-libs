@@ -122,10 +122,14 @@ func (n *node) childOrCreate(seg string) *node {
 	return child
 }
 
+// childOf 优先静态匹配, 匹配不上再通配符匹配
 func (n *node) childOf(path string) (*node, bool) {
 	if n.children == nil {
-		return nil, false
+		return n.starChild, n.starChild != nil
 	}
 	child, ok := n.children[path]
+	if !ok {
+		return n.starChild, n.starChild != nil
+	}
 	return child, ok
 }
