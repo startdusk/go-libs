@@ -31,6 +31,10 @@ func TestRouter_addRoute(t *testing.T) {
 		},
 		{
 			method: http.MethodGet,
+			path:   "/order/detail/:id",
+		},
+		{
+			method: http.MethodGet,
 			path:   "/order/*",
 		},
 		{
@@ -87,6 +91,10 @@ func TestRouter_addRoute(t *testing.T) {
 							"detail": &node{
 								path:    "detail",
 								handler: mockHandler,
+								paramChild: &node{
+									path:    ":id",
+									handler: mockHandler,
+								},
 							},
 						},
 						starChild: &node{
@@ -183,6 +191,10 @@ func TestRouter_findRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/login",
 		},
+		{
+			method: http.MethodPost,
+			path:   "/login/:username",
+		},
 	}
 
 	var mockHandler HandleFunc = func(ctx *Context) {}
@@ -243,6 +255,16 @@ func TestRouter_findRoute(t *testing.T) {
 			wantNode: &node{
 				handler: mockHandler,
 				path:    "*",
+			},
+		},
+		{
+			name:      "命中参数路径 :username",
+			method:    http.MethodPost,
+			path:      "/login/stratdusk",
+			wantFound: true,
+			wantNode: &node{
+				handler: mockHandler,
+				path:    ":username",
 			},
 		},
 		{
@@ -320,6 +342,13 @@ func (n *node) equal(otherNode *node) (string, bool) {
 
 	if n.starChild != nil {
 		msg, ok := n.starChild.equal(otherNode.starChild)
+		if !ok {
+			return msg, ok
+		}
+	}
+
+	if n.paramChild != nil {
+		msg, ok := n.paramChild.equal(otherNode.paramChild)
 		if !ok {
 			return msg, ok
 		}

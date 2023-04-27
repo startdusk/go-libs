@@ -97,10 +97,20 @@ type node struct {
 	// 通配符节点
 	starChild *node
 
+	// 路径参数节点
+	paramChild *node
+
 	handler HandleFunc
 }
 
 func (n *node) childOrCreate(seg string) *node {
+	if seg[0] == ':' {
+		child := &node{
+			path: seg,
+		}
+		n.paramChild = child
+		return child
+	}
 	if seg == "*" {
 		child := &node{
 			path: seg,
@@ -125,10 +135,18 @@ func (n *node) childOrCreate(seg string) *node {
 // childOf 优先静态匹配, 匹配不上再通配符匹配
 func (n *node) childOf(path string) (*node, bool) {
 	if n.children == nil {
+		if n.paramChild != nil {
+			// 参数路径是一个更具体的东西, 所以优先级要比通配符高
+			return n.paramChild, true
+		}
 		return n.starChild, n.starChild != nil
 	}
 	child, ok := n.children[path]
 	if !ok {
+		if n.paramChild != nil {
+			// 参数路径是一个更具体的东西, 所以优先级要比通配符高
+			return n.paramChild, true
+		}
 		return n.starChild, n.starChild != nil
 	}
 	return child, ok
