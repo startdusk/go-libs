@@ -29,10 +29,10 @@ jobs:
             dep ensure
         fi
     - name: Build
-      run: go build -v .
+      run: go build -v ./...
 
     - name: Test
-      run: go test -v .
+      run: go test -v ./...
     
     - name: Test Race
       run:  go test -race -cpu 1,4 -timeout 7m ./...
