@@ -156,6 +156,18 @@ func TestRouter_addRoute(t *testing.T) {
 		panicReRegisterRouter.addRoute(http.MethodGet, "/a/b/c", mockHandler)
 		panicReRegisterRouter.addRoute(http.MethodGet, "/a/b/c", mockHandler)
 	}, "路由[/a/b/c]重复注册")
+
+	// 同时存在路径参数匹配和通配符匹配
+	panicBothRouter := newRouter()
+	assert.Panicsf(t, func() {
+		panicBothRouter.addRoute(http.MethodGet, "/a/*", mockHandler)
+		panicBothRouter.addRoute(http.MethodGet, "/a/:id", mockHandler)
+	}, "不允许同时注册路径参数和通配符匹配, 已有通配符匹配")
+
+	assert.Panicsf(t, func() {
+		panicBothRouter.addRoute(http.MethodGet, "/a/:id", mockHandler)
+		panicBothRouter.addRoute(http.MethodGet, "/a/*", mockHandler)
+	}, "不允许同时注册路径参数和通配符匹配, 已有路径参数匹配")
 }
 
 func TestRouter_findRoute(t *testing.T) {
@@ -204,11 +216,11 @@ func TestRouter_findRoute(t *testing.T) {
 	}
 
 	cases := []struct {
-		name      string
-		method    string
-		path      string
-		wantFound bool
-		wantNode  *node
+		name          string
+		method        string
+		path          string
+		wantFound     bool
+		wantMatchInfo *matchInfo
 	}{
 		{
 			name:      "method找不到",
@@ -227,12 +239,14 @@ func TestRouter_findRoute(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "/order",
 			wantFound: true,
-			wantNode: &node{
-				path: "order",
-				children: map[string]*node{
-					"detail": &node{
-						handler: mockHandler,
-						path:    "detail",
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path: "order",
+					children: map[string]*node{
+						"detail": &node{
+							handler: mockHandler,
+							path:    "detail",
+						},
 					},
 				},
 			},
@@ -242,9 +256,11 @@ func TestRouter_findRoute(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "/order/detail",
 			wantFound: true,
-			wantNode: &node{
-				handler: mockHandler,
-				path:    "detail",
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					handler: mockHandler,
+					path:    "detail",
+				},
 			},
 		},
 		{
@@ -252,19 +268,26 @@ func TestRouter_findRoute(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "/order/abc",
 			wantFound: true,
-			wantNode: &node{
-				handler: mockHandler,
-				path:    "*",
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					handler: mockHandler,
+					path:    "*",
+				},
 			},
 		},
 		{
 			name:      "命中参数路径 :username",
 			method:    http.MethodPost,
-			path:      "/login/stratdusk",
+			path:      "/login/startdusk",
 			wantFound: true,
-			wantNode: &node{
-				handler: mockHandler,
-				path:    ":username",
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					handler: mockHandler,
+					path:    ":username",
+				},
+				pathParams: map[string]string{
+					"username": "startdusk",
+				},
 			},
 		},
 		{
@@ -272,26 +295,28 @@ func TestRouter_findRoute(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "/",
 			wantFound: true,
-			wantNode: &node{
-				path:    "/",
-				handler: mockHandler,
-				children: map[string]*node{
-					"user": &node{
-						path:    "user",
-						handler: mockHandler,
-						children: map[string]*node{
-							"home": &node{
-								path:    "home",
-								handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "/",
+					handler: mockHandler,
+					children: map[string]*node{
+						"user": &node{
+							path:    "user",
+							handler: mockHandler,
+							children: map[string]*node{
+								"home": &node{
+									path:    "home",
+									handler: mockHandler,
+								},
 							},
 						},
-					},
-					"order": &node{
-						path: "order",
-						children: map[string]*node{
-							"detail": &node{
-								path:    "detail",
-								handler: mockHandler,
+						"order": &node{
+							path: "order",
+							children: map[string]*node{
+								"detail": &node{
+									path:    "detail",
+									handler: mockHandler,
+								},
 							},
 						},
 					},
@@ -302,12 +327,13 @@ func TestRouter_findRoute(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			node, found := r.findRoute(c.method, c.path)
+			matchInfo, found := r.findRoute(c.method, c.path)
 			assert.Equal(t, c.wantFound, found)
 			if !c.wantFound {
 				return
 			}
-			msg, ok := c.wantNode.equal(node)
+			assert.Equal(t, c.wantMatchInfo.pathParams, matchInfo.pathParams)
+			msg, ok := c.wantMatchInfo.n.equal(matchInfo.n)
 			assert.True(t, ok, msg)
 		})
 	}

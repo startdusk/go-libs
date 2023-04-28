@@ -52,11 +52,12 @@ func (h *HTTPServer) Get(path string, handleFunc HandleFunc) {
 
 func (h *HTTPServer) serve(ctx *Context) {
 	// 查找路由, 并且执行命中的业务逻辑
-	node, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
-	if !ok || node.handler == nil {
+	route, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
+	if !ok || route.n.handler == nil {
 		ctx.Resp.WriteHeader(http.StatusNotFound)
 		ctx.Resp.Write([]byte(http.StatusText(http.StatusNotFound)))
 		return
 	}
-	node.handler(ctx)
+	ctx.PathParams = route.pathParams
+	route.n.handler(ctx)
 }
