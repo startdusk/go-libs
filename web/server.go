@@ -16,6 +16,8 @@ type Server interface {
 
 type HTTPServer struct {
 	router
+
+	middlewares []Middleware
 }
 
 func NewHTTPServer() *HTTPServer {
@@ -31,7 +33,17 @@ func (h *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Resp: w,
 	}
 
-	h.serve(ctx)
+	// 最后一个是这个root
+	root := h.serve
+
+	// 然后这里就是利用最后一个不断往前回溯组装链条
+	// 从后往前
+	// 把后一个作为前一个的next构造好链条
+	for i := len(h.middlewares) - 1; i >= 0; i-- {
+		root = h.middlewares[i](root)
+	}
+	// 这里执行的时候就是从前往后了
+	root(ctx)
 }
 
 func (h *HTTPServer) Start(addr string) error {
