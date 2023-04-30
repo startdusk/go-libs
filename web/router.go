@@ -49,6 +49,7 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 			panic("路由[" + path + "]重复注册")
 		}
 		root.handler = handleFunc
+		root.fullPath = path
 		return
 	}
 
@@ -65,6 +66,7 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 		panic("路由[" + path + "]重复注册")
 	}
 	root.handler = handleFunc
+	root.fullPath = path
 }
 
 func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
@@ -101,6 +103,9 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 }
 
 type node struct {
+	// 命中路由的完整路径
+	fullPath string
+	// 命中路由的那段路径
 	path string
 
 	// 静态匹配的节点

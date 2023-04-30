@@ -17,6 +17,9 @@ type Context struct {
 
 	// 缓存URL Query参数
 	queryValues url.Values
+
+	// 命中的路由
+	MatchedRoute string
 }
 
 func (c *Context) BindJSON(val any) error {

@@ -20,9 +20,22 @@ type HTTPServer struct {
 	middlewares []Middleware
 }
 
-func NewHTTPServer() *HTTPServer {
-	return &HTTPServer{
+type HTTPServerOption func(hs *HTTPServer)
+
+func NewHTTPServer(opts ...HTTPServerOption) *HTTPServer {
+	hs := &HTTPServer{
 		router: newRouter(),
+	}
+	for _, opt := range opts {
+		opt(hs)
+	}
+
+	return hs
+}
+
+func ServerWithMiddleware(mids ...Middleware) HTTPServerOption {
+	return func(hs *HTTPServer) {
+		hs.middlewares = mids
 	}
 }
 
@@ -62,6 +75,38 @@ func (h *HTTPServer) Get(path string, handleFunc HandleFunc) {
 	h.addRoute(http.MethodGet, path, handleFunc)
 }
 
+func (h *HTTPServer) Post(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodPost, path, handleFunc)
+}
+
+func (h *HTTPServer) Put(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodPut, path, handleFunc)
+}
+
+func (h *HTTPServer) Delete(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodDelete, path, handleFunc)
+}
+
+func (h *HTTPServer) Head(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodHead, path, handleFunc)
+}
+
+func (h *HTTPServer) Patch(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodPatch, path, handleFunc)
+}
+
+func (h *HTTPServer) Connect(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodConnect, path, handleFunc)
+}
+
+func (h *HTTPServer) Trace(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodTrace, path, handleFunc)
+}
+
+func (h *HTTPServer) Options(path string, handleFunc HandleFunc) {
+	h.addRoute(http.MethodOptions, path, handleFunc)
+}
+
 func (h *HTTPServer) serve(ctx *Context) {
 	// 查找路由, 并且执行命中的业务逻辑
 	route, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
@@ -71,5 +116,6 @@ func (h *HTTPServer) serve(ctx *Context) {
 		return
 	}
 	ctx.PathParams = route.pathParams
+	ctx.MatchedRoute = route.n.fullPath
 	route.n.handler(ctx)
 }
