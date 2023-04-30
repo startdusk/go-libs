@@ -8,6 +8,7 @@ import (
 	"testing"
 )
 
+// 匹配优先级 静态匹配 > 正则匹配 > 参数匹配(路径参数匹配可以看做是正则匹配的一种特殊形态，例如 :id(.+)。比路径参数更精准) > 通配符匹配
 func TestRouter_addRoute(t *testing.T) {
 	routes := []struct {
 		method string
@@ -45,6 +46,8 @@ func TestRouter_addRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/login",
 		},
+		// 通配符路由
+		// TODO: 支持 /a/b/* 匹配 /a/b/c/d/e... 目前只支持 匹配到 /a/b/c
 		{
 			method: http.MethodGet,
 			path:   "/*",
@@ -60,6 +63,15 @@ func TestRouter_addRoute(t *testing.T) {
 		{
 			method: http.MethodGet,
 			path:   "/*/abc/*",
+		},
+		// TODO: 正则路由
+		{
+			method: http.MethodDelete,
+			path:   "/req/:id(.*)",
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/:name(^.+$)/abc",
 		},
 	}
 
