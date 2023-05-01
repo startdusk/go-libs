@@ -5,6 +5,7 @@ test: clean
 .PHONY: clean
 clean:
 	@go mod tidy
+	@go clean -testcache
 	@go vet ./...
 	@go fmt ./...
 

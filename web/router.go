@@ -1,6 +1,7 @@
 package web
 
 import (
+	"regexp"
 	"strings"
 )
 
@@ -91,8 +92,18 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 			if pathParams == nil {
 				pathParams = make(map[string]string)
 			}
-			// path 是 :id 这种形式
-			pathParams[child.path[1:]] = seg
+
+			if child.regexps != nil {
+				if !child.regexps.MatchString(seg) {
+					return nil, false
+				}
+
+				// path 是 :id 这种形式
+				pathParams[child.path[1:]] = seg
+			} else {
+				// path 是 :id 这种形式
+				pathParams[child.path[1:]] = seg
+			}
 		}
 		root = child
 	}
@@ -118,31 +129,75 @@ type node struct {
 	// 路径参数节点
 	paramChild *node
 
+	// 正则表达式节点(如 `/req/:id(.*)` )
+	regexps *regexp.Regexp
+
 	handler HandleFunc
 }
 
 func (n *node) childOrCreate(seg string) *node {
+
 	if seg[0] == ':' {
 		// 不允许同时注册路径参数和通配符匹配
 		if n.starChild != nil {
 			panic("不允许同时注册路径参数和通配符匹配, 已有通配符匹配")
 		}
-		child := &node{
+
+		// 1.正则匹配
+		ok, param, reg := splitSegment(seg)
+		if ok {
+			if n.paramChild != nil {
+				if n.paramChild.path != param {
+					panic("不允许同时注册相同路径的不同的正则匹配")
+				}
+				if n.paramChild.regexps == nil {
+					panic("不允许同时注册路径参数和正则匹配, 已有路径参数匹配")
+				}
+				if n.paramChild.regexps.String() != reg {
+					panic("不允许同时注册相同路径的不同的正则匹配")
+				}
+				return n.paramChild
+			}
+			n.paramChild = &node{
+				path: param,
+			}
+
+			r, err := regexp.Compile(reg)
+			if err != nil {
+				panic("正则表达式路由错误")
+			}
+			n.paramChild.regexps = r
+			return n.paramChild
+		}
+
+		if n.paramChild != nil {
+			return n.paramChild
+		}
+
+		// 2.匹配参数路径
+		n.paramChild = &node{
 			path: seg,
 		}
-		n.paramChild = child
-		return child
+		return n.paramChild
 	}
+
 	if seg == "*" {
+		// 3.匹配通配符
 		if n.paramChild != nil {
 			panic("不允许同时注册路径参数和通配符匹配, 已有路径参数匹配")
 		}
-		child := &node{
+
+		// 已注册，就直接返回
+		if n.starChild != nil {
+			return n.starChild
+		}
+
+		n.starChild = &node{
 			path: seg,
 		}
-		n.starChild = child
-		return child
+		return n.starChild
 	}
+
 	if n.children == nil {
 		n.children = make(map[string]*node)
 	}
@@ -183,4 +238,27 @@ func (n *node) childOf(path string) (*node, bool, bool) {
 type matchInfo struct {
 	n          *node
 	pathParams map[string]string
+}
+
+func splitSegment(key string) (bool, string, string) {
+	var param string
+	var reg string
+	var startReg bool
+	for _, c := range key {
+		switch {
+		case c == '(':
+			startReg = true
+			reg += string(c)
+		case c == ')' && startReg:
+			startReg = false
+			reg += string(c)
+			return true, param, reg
+		case !startReg:
+			param += string(c)
+		case startReg:
+			reg += string(c)
+		}
+	}
+
+	return len(reg) != 0, param, reg
 }

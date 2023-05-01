@@ -2,10 +2,12 @@ package web
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"reflect"
+	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // 匹配优先级 静态匹配 > 正则匹配 > 参数匹配(路径参数匹配可以看做是正则匹配的一种特殊形态，例如 :id(.+)。比路径参数更精准) > 通配符匹配
@@ -64,7 +66,7 @@ func TestRouter_addRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/*/abc/*",
 		},
-		// TODO: 正则路由
+		// TODO: 正则路由(已添加成功)
 		{
 			method: http.MethodDelete,
 			path:   "/req/:id(.*)",
@@ -81,26 +83,51 @@ func TestRouter_addRoute(t *testing.T) {
 		r.addRoute(route.method, route.path, mockHandler)
 	}
 
+	idReg := regexp.MustCompile("(.*)")
+	nameReg := regexp.MustCompile("(^.+$)")
 	wantRouter := &router{
 		trees: map[string]*node{
-			http.MethodGet: &node{
-				path:    "/",
-				handler: mockHandler,
+			http.MethodGet: {
+				fullPath: "/",
+				path:     "/",
+				handler:  mockHandler,
+				starChild: &node{
+					path:     "*",
+					fullPath: "/*",
+					handler:  mockHandler,
+					starChild: &node{
+						path:     "*",
+						fullPath: "/*/*",
+						handler:  mockHandler,
+					},
+					children: map[string]*node{
+						"abc": {
+							path:     "abc",
+							fullPath: "/*/abc",
+							handler:  mockHandler,
+							starChild: &node{
+								path:     "*",
+								fullPath: "/*/abc/*",
+								handler:  mockHandler,
+							},
+						},
+					},
+				},
 				children: map[string]*node{
-					"user": &node{
+					"user": {
 						path:    "user",
 						handler: mockHandler,
 						children: map[string]*node{
-							"home": &node{
+							"home": {
 								path:    "home",
 								handler: mockHandler,
 							},
 						},
 					},
-					"order": &node{
+					"order": {
 						path: "order",
 						children: map[string]*node{
-							"detail": &node{
+							"detail": {
 								path:    "detail",
 								handler: mockHandler,
 								paramChild: &node{
@@ -117,28 +144,52 @@ func TestRouter_addRoute(t *testing.T) {
 				},
 			},
 
-			http.MethodPost: &node{
+			http.MethodPost: {
 				path: "/",
 				children: map[string]*node{
-					"order": &node{
+					"order": {
 						path: "order",
 						children: map[string]*node{
-							"create": &node{
+							"create": {
 								path:    "create",
 								handler: mockHandler,
 							},
 						},
 					},
-					"login": &node{
+					"login": {
 						path:    "login",
 						handler: mockHandler,
+					},
+				},
+			},
+
+			http.MethodDelete: {
+				path: "/",
+				paramChild: &node{
+					path:    ":name",
+					regexps: nameReg,
+					children: map[string]*node{
+						"abc": {
+							path:    "abc",
+							handler: mockHandler,
+						},
+					},
+				},
+				children: map[string]*node{
+					"req": {
+						path: "req",
+						paramChild: &node{
+							path:    ":id",
+							handler: mockHandler,
+							regexps: idReg,
+						},
 					},
 				},
 			},
 		},
 	}
 
-	msg, ok := wantRouter.equal(&r)
+	msg, ok := r.equal(wantRouter)
 
 	assert.True(t, ok, msg)
 
@@ -219,6 +270,31 @@ func TestRouter_findRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/login/:username",
 		},
+		{
+			method: http.MethodGet,
+			path:   "/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/abc",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*/abc/*",
+		},
+
+		{
+			method: http.MethodDelete,
+			path:   "/req/:id([0-9]+)",
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/:name(^.+$)/abc",
+		},
 	}
 
 	var mockHandler HandleFunc = func(ctx *Context) {}
@@ -234,16 +310,126 @@ func TestRouter_findRoute(t *testing.T) {
 		wantFound     bool
 		wantMatchInfo *matchInfo
 	}{
+		// ================================================================================
+		// 测试通配符路由
+		{
+			name:      "/xxx 命中 /* 路由",
+			method:    http.MethodGet,
+			path:      "/xxx",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "*",
+					handler: mockHandler,
+					starChild: &node{
+						path:    "*",
+						handler: mockHandler,
+					},
+					children: map[string]*node{
+						"abc": {
+							path:    "abc",
+							handler: mockHandler,
+							starChild: &node{
+								path:    "*",
+								handler: mockHandler,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:      "/xxx/xxx 命中 /*/* 路由",
+			method:    http.MethodGet,
+			path:      "/xxx/xxx",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			name:      "/xxx/abc 命中 /*/abc 路由",
+			method:    http.MethodGet,
+			path:      "/xxx/abc",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "abc",
+					handler: mockHandler,
+				},
+			},
+		},
+		{
+			name:      "/xxx/abc/xxx 命中 /*/abc/* 路由",
+			method:    http.MethodGet,
+			path:      "/xxx/abc/xxx",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+			},
+		},
+
+		// ================================================================================
+		// 测试正则匹配路由
+		{
+			name:      "/req/124 命中 /req/:id([0-9]+) 路由",
+			method:    http.MethodDelete,
+			path:      "/req/124",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    ":id",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{
+					"id": "124",
+				},
+			},
+		},
+		{
+			name:      "/req/xxxx 不能命中 /req/:id([0-9]+) 路由",
+			method:    http.MethodDelete,
+			path:      "/req/xxxx",
+			wantFound: false,
+		},
+		{
+			name:      "/123/abc 命中 /:name(^.+$)/abc 路由",
+			method:    http.MethodDelete,
+			path:      "/123/abc",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "abc",
+					handler: mockHandler,
+				},
+				pathParams: map[string]string{
+					"name": "123",
+				},
+			},
+		},
+		{
+			name:      "/req/abc 不能命中 /:name(^.+$)/abc 路由(req是静态路由,优先级最高)",
+			method:    http.MethodDelete,
+			path:      "/req/abc",
+			wantFound: false,
+		},
+
 		{
 			name:      "method找不到",
-			method:    http.MethodDelete,
+			method:    http.MethodOptions,
 			path:      "/找不到",
 			wantFound: false,
 		},
 		{
 			name:      "path找不到",
 			method:    http.MethodGet,
-			path:      "/找不到",
+			path:      "/找不到/找不到/找不到",
 			wantFound: false,
 		},
 		{
@@ -255,7 +441,7 @@ func TestRouter_findRoute(t *testing.T) {
 				n: &node{
 					path: "order",
 					children: map[string]*node{
-						"detail": &node{
+						"detail": {
 							handler: mockHandler,
 							path:    "detail",
 						},
@@ -312,20 +498,20 @@ func TestRouter_findRoute(t *testing.T) {
 					path:    "/",
 					handler: mockHandler,
 					children: map[string]*node{
-						"user": &node{
+						"user": {
 							path:    "user",
 							handler: mockHandler,
 							children: map[string]*node{
-								"home": &node{
+								"home": {
 									path:    "home",
 									handler: mockHandler,
 								},
 							},
 						},
-						"order": &node{
+						"order": {
 							path: "order",
 							children: map[string]*node{
-								"detail": &node{
+								"detail": {
 									path:    "detail",
 									handler: mockHandler,
 								},
@@ -354,10 +540,13 @@ func TestRouter_findRoute(t *testing.T) {
 // 比较两个router是否相等
 // 返回一个错误信息帮助排查问题和bool判断是否相等
 func (r *router) equal(otherRouter *router) (string, bool) {
+	if len(r.trees) != len(otherRouter.trees) {
+		return fmt.Sprintf("trees 数量不相等: expect %d actual %d", len(r.trees), len(otherRouter.trees)), false
+	}
 	for k, v := range r.trees {
 		dst, ok := otherRouter.trees[k]
 		if !ok {
-			return fmt.Sprintf("找不到对应的http method"), false
+			return fmt.Sprintf("找不到对应的http method: %s", k), false
 		}
 		msg, equal := v.equal(dst)
 		if !equal {
@@ -371,11 +560,11 @@ func (r *router) equal(otherRouter *router) (string, bool) {
 // 返回一个错误信息帮助排查问题和bool判断是否相等
 func (n *node) equal(otherNode *node) (string, bool) {
 	if n.path != otherNode.path {
-		return fmt.Sprintf("节点路径不匹配"), false
+		return fmt.Sprintf("节点路径不匹配: expect %s actual %s", n.path, otherNode.path), false
 	}
 
 	if len(n.children) != len(otherNode.children) {
-		return fmt.Sprintf("节点children数量不相等"), false
+		return fmt.Sprintf("%s, 节点children数量不相等: expect %d actual %d", n.path, len(n.children), len(otherNode.children)), false
 	}
 
 	if n.starChild != nil {
@@ -393,15 +582,23 @@ func (n *node) equal(otherNode *node) (string, bool) {
 	}
 
 	if reflect.ValueOf(n.handler) != reflect.ValueOf(otherNode.handler) {
-		return fmt.Sprintf("Handler 不相等"), false
+		return fmt.Sprintf("%s Handler 不相等, expect %v actual %v", n.path, reflect.ValueOf(n.handler), reflect.ValueOf(otherNode.handler)), false
+	}
+
+	if n.regexps != nil {
+		if otherNode.regexps == nil {
+			return fmt.Sprintf("%s 缺少正则表达式, expect %s actual nil", n.path, n.regexps.String()), false
+		}
+		if n.regexps.String() != otherNode.regexps.String() {
+			return fmt.Sprintf("%s 正则表达式不匹配, expect %s actual %s", n.path, n.regexps.String(), otherNode.regexps.String()), false
+		}
 	}
 
 	for path, c := range n.children {
 		dst, ok := otherNode.children[path]
 		if !ok {
-			return fmt.Sprintf("子节点 [%s] 找不到", path), false
+			return fmt.Sprintf("%s 子节点 [%s] 找不到", n.fullPath, path), false
 		}
-
 		msg, equal := c.equal(dst)
 		if !equal {
 			return msg, false
