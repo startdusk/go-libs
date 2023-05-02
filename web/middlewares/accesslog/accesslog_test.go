@@ -3,6 +3,7 @@ package accesslog
 import (
 	"github.com/startdusk/go-libs/web"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -23,5 +24,6 @@ func Test_AccesslogBuilder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hs.ServeHTTP(nil, req)
+	res := httptest.NewRecorder()
+	hs.ServeHTTP(res, req)
 }

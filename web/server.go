@@ -1,6 +1,7 @@
 package web
 
 import (
+	"log"
 	"net"
 	"net/http"
 )
@@ -18,6 +19,8 @@ type HTTPServer struct {
 	router
 
 	middlewares []Middleware
+
+	logFunc func(msg string, args ...any)
 }
 
 type HTTPServerOption func(hs *HTTPServer)
@@ -25,12 +28,21 @@ type HTTPServerOption func(hs *HTTPServer)
 func NewHTTPServer(opts ...HTTPServerOption) *HTTPServer {
 	hs := &HTTPServer{
 		router: newRouter(),
+		logFunc: func(msg string, args ...any) {
+			log.Printf(msg, args...)
+		},
 	}
 	for _, opt := range opts {
 		opt(hs)
 	}
 
 	return hs
+}
+
+func ServerWithLogFunc(logFunc func(msg string, args ...any)) HTTPServerOption {
+	return func(hs *HTTPServer) {
+		hs.logFunc = logFunc
+	}
 }
 
 func ServerWithMiddleware(mids ...Middleware) HTTPServerOption {
@@ -55,6 +67,17 @@ func (h *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for i := len(h.middlewares) - 1; i >= 0; i-- {
 		root = h.middlewares[i](root)
 	}
+
+	// 这里最后一个步骤, 就是把 RespData 和 RespStatusCode 刷新到响应里面
+	var m Middleware = func(next HandleFunc) HandleFunc {
+		return func(ctx *Context) {
+			next(ctx)
+			// 就设置好了 RespData 和 RespStatusCode
+			h.flashResp(ctx)
+		}
+	}
+
+	root = m(root)
 	// 这里执行的时候就是从前往后了
 	root(ctx)
 }
@@ -111,11 +134,24 @@ func (h *HTTPServer) serve(ctx *Context) {
 	// 查找路由, 并且执行命中的业务逻辑
 	route, ok := h.router.findRoute(ctx.Req.Method, ctx.Req.URL.Path)
 	if !ok || route.n.handler == nil {
-		ctx.Resp.WriteHeader(http.StatusNotFound)
-		ctx.Resp.Write([]byte(http.StatusText(http.StatusNotFound)))
+		ctx.RespStatusCode = http.StatusNotFound
+		ctx.RespData = []byte(http.StatusText(http.StatusNotFound))
 		return
 	}
 	ctx.PathParams = route.pathParams
 	ctx.MatchedRoute = route.n.fullPath
 	route.n.handler(ctx)
+}
+
+func (h *HTTPServer) flashResp(ctx *Context) {
+	if ctx.RespStatusCode > 0 {
+		ctx.Resp.WriteHeader(ctx.RespStatusCode)
+	}
+	n, err := ctx.Resp.Write(ctx.RespData)
+	if err != nil {
+		h.logFunc("写入响应数据错误: %v\n", err)
+	}
+	if n != len(ctx.RespData) {
+		h.logFunc("写入响应数据错误: 写入数据长度为 %d, 实际写入为 %d\n", len(ctx.RespData), n)
+	}
 }

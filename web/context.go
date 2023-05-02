@@ -12,6 +12,16 @@ type Context struct {
 	Req  *http.Request
 	Resp http.ResponseWriter
 
+	// RespData 和 RespStatusCode 主要是为了 midleware 读写用的
+	// 如果用户直接使用了 Resp 
+	// 那么他就直接绕开了 RespData 和 RespStatusCode 这两个
+	// 那么部分 middleware 就无法运作
+	
+	// 响应数据
+	RespData []byte
+	// 响应状态码
+	RespStatusCode int
+
 	// 缓存URL路径参数
 	PathParams map[string]string
 
@@ -71,9 +81,7 @@ func (c *Context) RespJSON(code int, val any) error {
 	if err != nil {
 		return err
 	}
-	c.Resp.WriteHeader(code)
-	if _, err := c.Resp.Write(data); err != nil {
-		return err
-	}
+	c.RespStatusCode = code
+	c.RespData = data
 	return nil
 }
