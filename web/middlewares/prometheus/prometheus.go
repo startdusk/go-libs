@@ -35,16 +35,21 @@ func (m MiddlewareBuilder) Build() web.Middleware {
 		"method",  // 命中的http method
 		"status",  // http状态码
 	})
+
+	prometheus.MustRegister(vector)
+
 	return func(next web.HandleFunc) web.HandleFunc {
 		return func(ctx *web.Context) {
 			startTime := time.Now()
 			defer func() {
-				duration := time.Now().Sub(startTime).Milliseconds()
-				pattern := ctx.MatchedRoute
-				if pattern == "" {
-					pattern = "unknown"
-				}
-				vector.WithLabelValues(pattern, ctx.Req.Method, strconv.Itoa(ctx.RespStatusCode)).Observe(float64(duration))
+				go func() {
+					duration := time.Now().Sub(startTime).Milliseconds()
+					pattern := ctx.MatchedRoute
+					if pattern == "" {
+						pattern = "unknown"
+					}
+					vector.WithLabelValues(pattern, ctx.Req.Method, strconv.Itoa(ctx.RespStatusCode)).Observe(float64(duration))
+				}()
 			}()
 			next(ctx)
 		}
