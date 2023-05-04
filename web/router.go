@@ -83,9 +83,14 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 	path = strings.Trim(path, "/")
 	segs := strings.Split(path, "/")
 	var pathParams map[string]string
+
+	var preStarChild bool
 	for _, seg := range segs {
-		child, paramChild, found := root.childOf(seg)
+		child, paramChild, starChild, found := root.childOf(seg)
 		if !found {
+			if preStarChild {
+				break
+			}
 			return nil, false
 		}
 		if paramChild {
@@ -93,19 +98,20 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 				pathParams = make(map[string]string)
 			}
 
-			if child.regexps != nil {
-				if !child.regexps.MatchString(seg) {
-					return nil, false
-				}
-
-				// path 是 :id 这种形式
-				pathParams[child.path[1:]] = seg
-			} else {
-				// path 是 :id 这种形式
-				pathParams[child.path[1:]] = seg
+			if child.regexps != nil && !child.regexps.MatchString(seg) {
+				return nil, false
 			}
+			// path 是 :id 这种形式
+			param := child.path[1:]
+			if _, ok := pathParams[param]; ok {
+				panic("路径参数" + child.path + "冲突")
+			}
+			pathParams[param] = seg
 		}
 		root = child
+		if starChild {
+			preStarChild = true
+		}
 	}
 	return &matchInfo{
 		n:          root,
@@ -215,24 +221,25 @@ func (n *node) childOrCreate(seg string) *node {
 // childOf 优先静态匹配, 匹配不上再通配符匹配
 // 第一个返回值是子节点
 // 第二个返回值是标记是否是路径参数
-// 第三个返回值是标记命中了没有
-func (n *node) childOf(path string) (*node, bool, bool) {
+// 第三个返回值是标记是否是通配符参数
+// 第四个返回值是标记命中了没有
+func (n *node) childOf(path string) (*node, bool, bool, bool) {
 	if n.children == nil {
 		if n.paramChild != nil {
 			// 参数路径是一个更具体的东西, 所以优先级要比通配符高
-			return n.paramChild, true, true
+			return n.paramChild, true, false, true
 		}
-		return n.starChild, false, n.starChild != nil
+		return n.starChild, false, true, n.starChild != nil
 	}
 	child, ok := n.children[path]
 	if !ok {
 		if n.paramChild != nil {
 			// 参数路径是一个更具体的东西, 所以优先级要比通配符高
-			return n.paramChild, true, true
+			return n.paramChild, true, false, true
 		}
-		return n.starChild, false, n.starChild != nil
+		return n.starChild, false, true, n.starChild != nil
 	}
-	return child, false, ok
+	return child, false, false, ok
 }
 
 type matchInfo struct {

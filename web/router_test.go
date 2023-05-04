@@ -49,7 +49,11 @@ func TestRouter_addRoute(t *testing.T) {
 			path:   "/login",
 		},
 		// 通配符路由
-		// TODO: 支持 /a/b/* 匹配 /a/b/c/d/e... 目前只支持 匹配到 /a/b/c
+		// // TODO: 支持 /a/b/* 匹配 /a/b/c/d/e... 目前只支持 匹配到 /a/b/c
+		// {
+		// 	method: http.MethodGet,
+		// 	path:   "/a/b/*",
+		// },
 		{
 			method: http.MethodGet,
 			path:   "/*",
@@ -66,7 +70,7 @@ func TestRouter_addRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/*/abc/*",
 		},
-		// TODO: 正则路由(已添加成功)
+		// 正则路由(已测试通过)
 		{
 			method: http.MethodDelete,
 			path:   "/req/:id(.*)",
@@ -270,6 +274,13 @@ func TestRouter_findRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/login/:username",
 		},
+
+		// 通配符路由
+		// TODO: 支持 /a/b/* 匹配 /a/b/c/d/e... 目前只支持 匹配到 /a/b/c
+		{
+			method: http.MethodGet,
+			path:   "/a/b/*",
+		},
 		{
 			method: http.MethodGet,
 			path:   "/*",
@@ -426,12 +437,13 @@ func TestRouter_findRoute(t *testing.T) {
 			path:      "/找不到",
 			wantFound: false,
 		},
-		{
-			name:      "path找不到",
-			method:    http.MethodGet,
-			path:      "/找不到/找不到/找不到",
-			wantFound: false,
-		},
+		// 因为存在 /* 所以所有路径都能匹配到。。
+		// {
+		// 	name:      "path找不到",
+		// 	method:    http.MethodGet,
+		// 	path:      "/找不到/找不到/找不到",
+		// 	wantFound: false,
+		// },
 		{
 			name:      "命中, 但该路由无handler",
 			method:    http.MethodGet,
@@ -446,6 +458,30 @@ func TestRouter_findRoute(t *testing.T) {
 							path:    "detail",
 						},
 					},
+				},
+			},
+		},
+		{
+			name:      "/a/b/c 命中 /a/b/*",
+			method:    http.MethodGet,
+			path:      "/a/b/c",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					handler: mockHandler,
+					path:    "*",
+				},
+			},
+		},
+		{
+			name:      "/a/b/c/d/e 命中 /a/b/*",
+			method:    http.MethodGet,
+			path:      "/a/b/c/d/e",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					handler: mockHandler,
+					path:    "*",
 				},
 			},
 		},
@@ -498,6 +534,18 @@ func TestRouter_findRoute(t *testing.T) {
 					path:    "/",
 					handler: mockHandler,
 					children: map[string]*node{
+						"a": {
+							path: "a",
+							children: map[string]*node{
+								"b": {
+									path: "b",
+									starChild: &node{
+										path:    "*",
+										handler: mockHandler,
+									},
+								},
+							},
+						},
 						"user": {
 							path:    "user",
 							handler: mockHandler,
