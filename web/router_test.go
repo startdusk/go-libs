@@ -235,6 +235,8 @@ func TestRouter_addRoute(t *testing.T) {
 		panicBothRouter.addRoute(http.MethodGet, "/a/:id", mockHandler)
 		panicBothRouter.addRoute(http.MethodGet, "/a/*", mockHandler)
 	}, "不允许同时注册路径参数和通配符匹配, 已有路径参数匹配")
+
+	// TODO: 同时存在 正则匹配
 }
 
 func TestRouter_findRoute(t *testing.T) {
@@ -276,7 +278,7 @@ func TestRouter_findRoute(t *testing.T) {
 		},
 
 		// 通配符路由
-		// TODO: 支持 /a/b/* 匹配 /a/b/c/d/e... 目前只支持 匹配到 /a/b/c
+		// 支持 /a/b/* 匹配 /a/b/c/d/e... 目前只支持 匹配到 /a/b/c
 		{
 			method: http.MethodGet,
 			path:   "/a/b/*",
@@ -395,7 +397,7 @@ func TestRouter_findRoute(t *testing.T) {
 			wantFound: true,
 			wantMatchInfo: &matchInfo{
 				n: &node{
-					path:    ":id",
+					path:    ":id([0-9]+)",
 					handler: mockHandler,
 				},
 				pathParams: map[string]string{
@@ -578,6 +580,7 @@ func TestRouter_findRoute(t *testing.T) {
 			if !c.wantFound {
 				return
 			}
+
 			assert.Equal(t, c.wantMatchInfo.pathParams, matchInfo.pathParams)
 			msg, ok := c.wantMatchInfo.n.equal(matchInfo.n)
 			assert.True(t, ok, msg)
