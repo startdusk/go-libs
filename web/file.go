@@ -6,7 +6,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+// 目前来说, 上传下载的功能推荐大家使用OSS, 而不是自建服务器
 
 type FileUploader struct {
 	FileField string
@@ -63,5 +66,49 @@ func (u FileUploader) Handle() HandleFunc {
 
 		ctx.RespStatusCode = http.StatusOK
 		ctx.RespData = []byte(http.StatusText(http.StatusOK))
+	}
+}
+
+type FileDownloader struct {
+	FileField string
+	Dir       string
+}
+
+func (f *FileDownloader) Handle() HandleFunc {
+	return func(ctx *Context) {
+		req, err := ctx.QueryValue(f.FileField)
+		if err != nil {
+			ctx.RespStatusCode = http.StatusBadRequest
+			ctx.RespData = []byte("cannot found target file")
+			return
+		}
+		path := filepath.Join(f.Dir, filepath.Clean(req))
+		filename := filepath.Base(path)
+		// 安全校验, 防止相对路径引起攻击者下载了你的系统文件
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			ctx.RespStatusCode = http.StatusBadRequest
+			ctx.RespData = []byte("cannot found target file")
+			return
+		}
+		if !strings.Contains(absPath, f.Dir) {
+			ctx.RespStatusCode = http.StatusBadRequest
+			ctx.RespData = []byte("cannot found target file")
+			return
+		}
+
+		header := ctx.Resp.Header()
+		// 指定为 attachment 就是保存在本地;filename就是设置文件的名字
+		header.Set("Content-Disposition", "attachment;filename="+filename)
+		header.Set("Content-Description", "File Transfer")
+		// octet-stream 表示通用二进制文件
+		header.Set("Content-Type", "application/octet-stream")
+		// 这里设置为binary, 相当于直接传输
+		header.Set("Content-Transfer-Encoding", "binary")
+		header.Set("Expires", "0")
+		// must-revalidate 消除缓存, 每次都从服务器获取
+		header.Set("Cache-Control", "must-revalidate")
+		header.Set("Pragma", "public")
+		http.ServeFile(ctx.Resp, ctx.Req, path)
 	}
 }
