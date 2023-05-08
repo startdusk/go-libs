@@ -30,6 +30,8 @@ type Context struct {
 
 	// 命中的路由
 	MatchedRoute string
+
+	tplEngine TemplateEngine
 }
 
 func (c *Context) BindJSON(val any) error {
@@ -83,5 +85,16 @@ func (c *Context) RespJSON(code int, val any) error {
 	}
 	c.RespStatusCode = code
 	c.RespData = data
+	return nil
+}
+
+func (c *Context) Render(tplName string, data any) error {
+	renderData, err := c.tplEngine.Render(c.Req.Context(), tplName, data)
+	if err != nil {
+		c.RespStatusCode = http.StatusInternalServerError
+		return err
+	}
+	c.RespData = renderData
+	c.RespStatusCode = http.StatusOK
 	return nil
 }

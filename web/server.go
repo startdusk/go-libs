@@ -21,6 +21,8 @@ type HTTPServer struct {
 	middlewares []Middleware
 
 	logFunc func(msg string, args ...any)
+
+	tplEngine TemplateEngine
 }
 
 type HTTPServerOption func(hs *HTTPServer)
@@ -51,11 +53,18 @@ func ServerWithMiddleware(mids ...Middleware) HTTPServerOption {
 	}
 }
 
+func ServerWithTemplateEngine(engine TemplateEngine) HTTPServerOption {
+	return func(hs *HTTPServer) {
+		hs.tplEngine = engine
+	}
+}
+
 // ServeHTTP HTTPServer 处理请求入口
 func (h *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := &Context{
-		Req:  r,
-		Resp: w,
+		Req:       r,
+		Resp:      w,
+		tplEngine: h.tplEngine,
 	}
 
 	// 最后一个是这个root
@@ -128,6 +137,17 @@ func (h *HTTPServer) Trace(path string, handleFunc HandleFunc) {
 
 func (h *HTTPServer) Options(path string, handleFunc HandleFunc) {
 	h.addRoute(http.MethodOptions, path, handleFunc)
+}
+
+// 可路由的 Middleware
+// 允许用户在特定路由上注册Middleware
+// Middleware选取所有能够匹配上的路由的Middleware作为结果
+// Use("GET", "/a/b", ms) 当输入路径/a/b的时候, 会调对应的ms
+//
+//	当输入路径/a/b/c的时候, 会调对应的ms
+func (h *HTTPServer) Use(method string, path string, ms ...Middleware) {
+	// s.addRoute(method, path, nil, ms...) // 依托于原有的路由树来完成这个功能
+
 }
 
 func (h *HTTPServer) serve(ctx *Context) {

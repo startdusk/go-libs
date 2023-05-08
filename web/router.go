@@ -85,12 +85,13 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 
 	var pathParams map[string]string
 	mi := &matchInfo{}
+	cur := root
 	for _, seg := range segs {
-		child, found := root.childOf(seg)
+		child, found := cur.childOf(seg)
 		if !found {
 			// 最后一段为 * 通配符
-			if root.typ == nodeTypeAny {
-				mi.n = root
+			if cur.typ == nodeTypeAny {
+				mi.n = cur
 				return mi, true
 			}
 			return nil, false
@@ -101,12 +102,19 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 			}
 			pathParams[child.paramName] = seg
 		}
-		root = child
+		cur = child
 	}
 
-	mi.n = root
+	mi.n = cur
 	mi.pathParams = pathParams
+	mi.ms = r.findMiddlewares(root, segs)
 	return mi, true
+}
+
+func (r *router) findMiddlewares(root *node, segs []string) []Middleware {
+	// TODO:
+	// 层次遍历路由树, 找到middleware
+	return nil
 }
 
 type nodeType int
@@ -307,4 +315,5 @@ func (n *node) childOfNonStatic(seg string) (*node, bool) {
 type matchInfo struct {
 	n          *node
 	pathParams map[string]string
+	ms         []Middleware // TODO
 }

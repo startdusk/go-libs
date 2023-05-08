@@ -48,12 +48,6 @@ func TestRouter_addRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/login",
 		},
-		// 通配符路由
-		// // TODO: 支持 /a/b/* 匹配 /a/b/c/d/e... 目前只支持 匹配到 /a/b/c
-		// {
-		// 	method: http.MethodGet,
-		// 	path:   "/a/b/*",
-		// },
 		{
 			method: http.MethodGet,
 			path:   "/*",
