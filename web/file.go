@@ -1,11 +1,13 @@
 package web
 
 import (
+	"github.com/hashicorp/golang-lru/v2"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -111,4 +113,102 @@ func (f *FileDownloader) Handle() HandleFunc {
 		header.Set("Pragma", "public")
 		http.ServeFile(ctx.Resp, ctx.Req, path)
 	}
+}
+
+type StaticResourceHandler struct {
+	pathname string
+	dir      string
+	// 根据文件名后缀进行匹配文件类型
+	extContentTypeMap map[string]string
+
+	cache *lru.Cache[string, []byte]
+
+	// 大文件不缓存
+	maxSize int
+}
+
+type StaticResourceHandlerOption func(handler *StaticResourceHandler)
+
+func NewStaticResourceHandler(pathname string, dir string, opts ...StaticResourceHandlerOption) (*StaticResourceHandler, error) {
+	// TODO: 考虑缓存为对象, 能存储更多的信息
+	c, err := lru.New[string, []byte](1000)
+	if err != nil {
+		return nil, err
+	}
+	r := &StaticResourceHandler{
+		pathname: pathname,
+		dir:      dir,
+		cache:    c,
+		extContentTypeMap: map[string]string{
+			"jpg":  "image/jpg",
+			"png":  "image/png",
+			"jpeg": "image/jpeg",
+			"pdf":  "image/pdf",
+		},
+		maxSize: 10 * 1024 * 1024, // 10MB
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r, nil
+}
+
+func StaticWithExtensionContentTypeMap(extContentTypeMap map[string]string) StaticResourceHandlerOption {
+	return func(handler *StaticResourceHandler) {
+		handler.extContentTypeMap = extContentTypeMap
+	}
+}
+
+// func StaticWithCache(cache *lru.Cache) StaticResourceHandlerOption {
+// 	return func (handler *StaticResourceHandler) {
+// 		handler.cache = cache
+// 	}
+// }
+
+func StaticWithMaxFileSize(maxSize int) StaticResourceHandlerOption {
+	return func(handler *StaticResourceHandler) {
+		handler.maxSize = maxSize
+	}
+}
+
+func (r *StaticResourceHandler) Handle(ctx *Context) {
+	// 1.拿到目标文件名
+	// 2.定位到目标文件, 并且读取出来
+	// 3.返回给前端
+
+	file, err := ctx.PathValue(r.pathname)
+	if err != nil {
+		ctx.RespStatusCode = http.StatusBadRequest
+		ctx.RespData = []byte("cannot found target file")
+		return
+	}
+
+	dst := filepath.Join(r.dir, file)
+	data, ok := r.cache.Get(file)
+	if !ok {
+		// 无缓存, 则重新读取文件, 再添加进入缓存中
+		data, err := os.ReadFile(dst)
+		if err != nil {
+			ctx.RespStatusCode = http.StatusInternalServerError
+			ctx.RespData = []byte(http.StatusText(http.StatusNotFound))
+			return
+		}
+		if len(data) <= r.maxSize {
+			r.cache.Add(file, data)
+		}
+	}
+
+	ext := filepath.Ext(dst)[1:]
+	contentType, ok := r.extContentTypeMap[ext]
+	if !ok {
+		ctx.RespStatusCode = http.StatusBadRequest
+		ctx.RespData = []byte("cannot support " + ext + " media type")
+		return
+	}
+	header := ctx.Resp.Header()
+	header.Set("Content-Type", contentType)
+	header.Set("Content-Length", strconv.Itoa(len(data)))
+
+	ctx.RespStatusCode = http.StatusOK
+	ctx.RespData = data
 }
