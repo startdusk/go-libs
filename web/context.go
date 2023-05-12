@@ -31,6 +31,9 @@ type Context struct {
 	// 命中的路由
 	MatchedRoute string
 
+	// 用户自定义缓存
+	UserValues map[string]any
+
 	tplEngine TemplateEngine
 }
 

@@ -3,6 +3,7 @@ module github.com/startdusk/go-libs
 go 1.19
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/prometheus/client_golang v1.15.0
 	github.com/stretchr/testify v1.8.2
