@@ -5,7 +5,7 @@ import (
 )
 
 // session id 放cookie里面, 为什么不放url? url长度有限制
-
+// Propagator 主要解决session放哪里的问题
 type Propagator struct {
 	cookieName   string
 	cookieOption func(c *http.Cookie)

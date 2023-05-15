@@ -23,6 +23,7 @@ type Session interface {
 	ID() string
 }
 
+// Propagator 主要解决session放哪里的问题
 type Propagator interface {
 	Inject(id string, writer http.ResponseWriter) error
 	Extract(req *http.Request) (string, error)
