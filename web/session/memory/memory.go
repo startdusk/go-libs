@@ -16,7 +16,7 @@ var (
 )
 
 type Store struct {
-	mu sync.RWMutex
+	mu         sync.RWMutex
 	sessions   *cache.Cache
 	expiration time.Duration
 }
