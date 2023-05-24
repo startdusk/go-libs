@@ -9,6 +9,8 @@ var errNotSupportType = errors.New("不支持这种类型")
 var errNotSupportNil = errors.New("不支持nil")
 var errNotSupportZeroValue = errors.New("不支持零值")
 
+var errNotSetField = errors.New("不可修改字段")
+
 // IterateFields 遍历对象字段
 func IterateFields(entity any) (map[string]any, error) {
 	if entity == nil {
@@ -49,4 +51,19 @@ func IterateFields(entity any) (map[string]any, error) {
 	}
 
 	return res, nil
+}
+
+func SetField(entity any, field string, newVal any) error {
+	val := reflect.ValueOf(entity)
+	// for val.Type().Kind() == reflect.Pointer 反射层面上的解引用, 如 &user 直接取到 user, &&user 取到 user
+	for val.Type().Kind() == reflect.Pointer {
+		// 拿到指针指向的对象
+		val = val.Elem()
+	}
+	fieldVal := val.FieldByName(field)
+	if !fieldVal.CanSet() {
+		return errNotSetField
+	}
+	fieldVal.Set(reflect.ValueOf(newVal))
+	return nil
 }
