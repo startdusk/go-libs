@@ -4,10 +4,13 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/startdusk/go-libs/orm/internal/errs"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_Selector_Build(t *testing.T) {
+	db, err := NewDB()
+	assert.NoError(t, err)
 	cases := []struct {
 		name    string
 		builder QueryBuilder
@@ -17,7 +20,7 @@ func Test_Selector_Build(t *testing.T) {
 	}{
 		{
 			name:    "select_from",
-			builder: (&Selector[TestModel]{}).From("`TEST_MODEL`"),
+			builder: NewSelector[TestModel](db).From("`TEST_MODEL`"),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `TEST_MODEL`;",
 				Args: nil,
@@ -26,7 +29,7 @@ func Test_Selector_Build(t *testing.T) {
 		},
 		{
 			name:    "select_from_db",
-			builder: (&Selector[TestModel]{}).From("`my_db`.`TEST_MODEL`"),
+			builder: NewSelector[TestModel](db).From("`my_db`.`TEST_MODEL`"),
 			wantQuery: &Query{
 				SQL:  "SELECT * FROM `my_db`.`TEST_MODEL`;",
 				Args: nil,
@@ -35,69 +38,75 @@ func Test_Selector_Build(t *testing.T) {
 		},
 		{
 			name:    "select_empty_from",
-			builder: (&Selector[TestModel]{}).From(""),
+			builder: NewSelector[TestModel](db).From(""),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TestModel`;",
+				SQL:  "SELECT * FROM `test_model`;",
 				Args: nil,
 			},
 			wantErr: nil,
 		},
 		{
 			name:    "select_empty_where",
-			builder: (&Selector[TestModel]{}).Where(),
+			builder: NewSelector[TestModel](db).Where(),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TestModel`;",
+				SQL:  "SELECT * FROM `test_model`;",
 				Args: nil,
 			},
 			wantErr: nil,
 		},
 		{
 			name:    "select_no_from",
-			builder: &Selector[TestModel]{},
+			builder: NewSelector[TestModel](db),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TestModel`;",
+				SQL:  "SELECT * FROM `test_model`;",
 				Args: nil,
 			},
 			wantErr: nil,
 		},
 		{
-			name:    "select_from_TestModel_where_age=18",
-			builder: (&Selector[TestModel]{}).Where(C(`age`).Eq(18)),
+			name:    "select_from_test_model_where_age=18",
+			builder: NewSelector[TestModel](db).Where(C(`Age`).Eq(18)),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TestModel` WHERE `age` = ?;",
+				SQL:  "SELECT * FROM `test_model` WHERE `age` = ?;",
 				Args: []any{18},
 			},
 			wantErr: nil,
 		},
 
 		{
-			name:    "select_from_TestModel_where_not(age=18)",
-			builder: (&Selector[TestModel]{}).Where(Not(C(`age`).Eq(18))),
+			name:    "select_from_test_model_where_not(age=18)",
+			builder: NewSelector[TestModel](db).Where(Not(C(`Age`).Eq(18))),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TestModel` WHERE  NOT (`age` = ?);",
+				SQL:  "SELECT * FROM `test_model` WHERE  NOT (`age` = ?);",
 				Args: []any{18},
 			},
 			wantErr: nil,
 		},
 
 		{
-			name:    "select_from_TestModel_where_age=18_and_name=tom",
-			builder: (&Selector[TestModel]{}).Where(C(`age`).Eq(18).And(C("name").Eq("tom"))),
+			name:    "select_from_test_model_where_age=18_and_first_name=tom",
+			builder: NewSelector[TestModel](db).Where(C(`Age`).Eq(18).And(C("FirstName").Eq("tom"))),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TestModel` WHERE (`age` = ?) AND (`name` = ?);",
+				SQL:  "SELECT * FROM `test_model` WHERE (`age` = ?) AND (`first_name` = ?);",
 				Args: []any{18, "tom"},
 			},
 			wantErr: nil,
 		},
 
 		{
-			name:    "select_from_TestModel_where_age=18_or_name=tom",
-			builder: (&Selector[TestModel]{}).Where(C(`age`).Eq(18).Or(C("name").Eq("tom"))),
+			name:    "select_from_test_model_where_age=18_or_first_name=tom",
+			builder: NewSelector[TestModel](db).Where(C(`Age`).Eq(18).Or(C("FirstName").Eq("tom"))),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TestModel` WHERE (`age` = ?) OR (`name` = ?);",
+				SQL:  "SELECT * FROM `test_model` WHERE (`age` = ?) OR (`first_name` = ?);",
 				Args: []any{18, "tom"},
 			},
 			wantErr: nil,
+		},
+		{
+			name:    "invalid column",
+			builder: NewSelector[TestModel](db).Where(C(`Age`).Eq(18).Or(C("XXX").Eq("tom"))),
+
+			wantErr: errs.NewErrUnknownField("XXX"),
 		},
 	}
 

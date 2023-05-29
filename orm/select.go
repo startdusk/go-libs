@@ -2,8 +2,7 @@ package orm
 
 import (
 	"context"
-	"fmt"
-	"reflect"
+	"github.com/startdusk/go-libs/orm/internal/errs"
 	"strings"
 )
 
@@ -12,6 +11,15 @@ type Selector[T any] struct {
 	where     []Predicate
 	sb        strings.Builder
 	args      []any
+	model     *model
+
+	db *DB
+}
+
+func NewSelector[T any](db *DB) *Selector[T] {
+	return &Selector[T]{
+		db: db,
+	}
 }
 
 func (s *Selector[T]) From(tableName string) *Selector[T] {
@@ -25,14 +33,18 @@ func (s *Selector[T]) Where(where ...Predicate) *Selector[T] {
 }
 
 func (s *Selector[T]) Build() (*Query, error) {
+	var err error
+	s.model, err = s.db.r.get(new(T))
+	if err != nil {
+		return nil, err
+	}
+
 	s.sb.WriteString("SELECT * FROM ")
 	if s.tableName == "" {
-		// 通过反射拿到类型的名字作为表名
-		var t T
-		typ := reflect.TypeOf(t)
+
 		// 这里给表名加 ``
 		s.sb.WriteByte('`')
-		s.sb.WriteString(typ.Name())
+		s.sb.WriteString(s.model.tableName)
 		s.sb.WriteByte('`')
 	} else {
 		// 这里是用户传进来的表名, 用户应该保证它的正确性
@@ -104,8 +116,12 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column: // 代表列名, 直接拼接列名
+		fd, ok := s.model.fields[exp.name]
+		if !ok {
+			return errs.NewErrUnknownField(exp.name)
+		}
 		s.sb.WriteByte('`')
-		s.sb.WriteString(exp.name)
+		s.sb.WriteString(fd.colName)
 		s.sb.WriteByte('`')
 	case value: // 代表参数, 加入参数列表
 		s.sb.WriteString("?")
@@ -113,7 +129,7 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 	case nil:
 		return nil
 	default:
-		return fmt.Errorf("orm: 不支持的表达式类型: %+v", expr)
+		return errs.NewErrUnsupportedExpressionType(expr)
 	}
 	return nil
 }

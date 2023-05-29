@@ -3,6 +3,7 @@ package orm
 import (
 	"github.com/startdusk/go-libs/orm/internal/errs"
 	"github.com/stretchr/testify/assert"
+	"reflect"
 	"testing"
 )
 
@@ -56,14 +57,69 @@ func Test_ParseModel(t *testing.T) {
 		},
 	}
 
+	r := newRegistry()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			m, err := parseModel(c.entity)
+			m, err := r.parseModel(c.entity)
 			assert.Equal(t, c.wantErr, err)
 			if err != nil {
 				return
 			}
 
+			assert.Equal(t, c.wantModel, m)
+		})
+	}
+}
+
+func Test_RegistryGet(t *testing.T) {
+	cases := []struct {
+		name string
+
+		entity    any
+		wantModel *model
+		wantErr   error
+		cacheSize int
+	}{
+		{
+			name:   "test pointer model",
+			entity: &TestModel{},
+			wantModel: &model{
+				tableName: "test_model",
+				fields: map[string]*field{
+					"ID": {
+						colName: "id",
+					},
+					"FirstName": {
+						colName: "first_name",
+					},
+					"LastName": {
+						colName: "last_name",
+					},
+					"Age": {
+						colName: "age",
+					},
+				},
+			},
+			cacheSize: 1,
+		},
+	}
+
+	r := newRegistry()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m, err := r.get(c.entity)
+			assert.Equal(t, c.wantErr, err)
+			if err != nil {
+				return
+			}
+
+			assert.Equal(t, c.wantModel, m)
+
+			assert.Equal(t, c.cacheSize, len(r.models))
+
+			typ := reflect.TypeOf(c.entity)
+			m, ok := r.models[typ]
+			assert.True(t, ok)
 			assert.Equal(t, c.wantModel, m)
 		})
 	}
