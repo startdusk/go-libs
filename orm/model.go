@@ -3,6 +3,7 @@ package orm
 import (
 	"github.com/startdusk/go-libs/orm/internal/errs"
 	"reflect"
+	"sync"
 	"unicode"
 )
 
@@ -23,6 +24,11 @@ type registry struct {
 	// 如: buyer下的User 和 seller下的User
 	// 那么reflect.Type就能很好的记录和区分这两个同名结构体
 	models map[reflect.Type]*model
+
+	// 保护map
+	// 也可以使用sync.Map, 但sync.Map有线程覆盖的问题
+	// 使用严格的读写锁, 采用double check的读写锁写法就没有线程覆盖的问题
+	lock sync.RWMutex
 }
 
 func newRegistry() *registry {
@@ -32,17 +38,41 @@ func newRegistry() *registry {
 	}
 }
 
+// func (r *registry) get(val any) (*model, error) {
+// 	typ := reflect.TypeOf(val)
+// 	m, ok := r.models.Load(typ)
+// 	if !ok {
+// 		var err error
+// 		if m, err = r.parseModel(typ); err != nil {
+// 			return nil, err
+// 		}
+// 	}
+// 	r.models.Store(typ, m) // 多线程同时执行到这里, 会出现线程覆盖的问题
+// 	return m.(*model), nil
+// }
+
 func (r *registry) get(val any) (*model, error) {
 	typ := reflect.TypeOf(val)
+	r.lock.RLock()
 	m, ok := r.models[typ]
-	if !ok {
-		var err error
-		m, err = r.parseModel(val)
-		if err != nil {
-			return nil, err
-		}
-		r.models[typ] = m
+	r.lock.RUnlock()
+	if ok {
+		return m, nil
 	}
+
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	// double check 写法, 保证不重复创建对象
+	m, ok = r.models[typ]
+	if ok {
+		return m, nil
+	}
+
+	m, err := r.parseModel(val)
+	if err != nil {
+		return nil, err
+	}
+	r.models[typ] = m
 
 	return m, nil
 }
