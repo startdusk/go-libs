@@ -156,6 +156,45 @@ func Test_RegistryGet(t *testing.T) {
 		},
 
 		{
+			name:   "empty table name",
+			entity: &EmptyTableName{},
+			wantModel: &model{
+				tableName: "empty_table_name",
+				fields: map[string]*field{
+					"FirstName": {
+						colName: "first_name",
+					},
+				},
+			},
+		},
+
+		{
+			name:   "custom table name",
+			entity: &CustomTableName{},
+			wantModel: &model{
+				tableName: "custom_table_name_t",
+				fields: map[string]*field{
+					"FirstName": {
+						colName: "first_name",
+					},
+				},
+			},
+		},
+
+		{
+			name:   "custom table name for ptr",
+			entity: &CustomTableNamePtr{},
+			wantModel: &model{
+				tableName: "custom_table_name_ptr_t",
+				fields: map[string]*field{
+					"FirstName": {
+						colName: "first_name",
+					},
+				},
+			},
+		},
+
+		{
 			name: "invalid column",
 			entity: func() any {
 				type TagTable struct {
@@ -183,4 +222,28 @@ func Test_RegistryGet(t *testing.T) {
 			assert.Equal(t, c.wantModel, m)
 		})
 	}
+}
+
+type EmptyTableName struct {
+	FirstName string
+}
+
+func (e EmptyTableName) TableName() string {
+	return ""
+}
+
+type CustomTableName struct {
+	FirstName string
+}
+
+func (c CustomTableName) TableName() string {
+	return "custom_table_name_t"
+}
+
+type CustomTableNamePtr struct {
+	FirstName string
+}
+
+func (c *CustomTableNamePtr) TableName() string {
+	return "custom_table_name_ptr_t"
 }

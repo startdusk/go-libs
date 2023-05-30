@@ -30,3 +30,7 @@ type Query struct {
 	SQL  string
 	Args []any
 }
+
+type TableName interface {
+	TableName() string
+}
