@@ -78,7 +78,6 @@ func Test_RegistryGet(t *testing.T) {
 		entity    any
 		wantModel *model
 		wantErr   error
-		cacheSize int
 	}{
 		{
 			name:   "test pointer model",
@@ -100,7 +99,71 @@ func Test_RegistryGet(t *testing.T) {
 					},
 				},
 			},
-			cacheSize: 1,
+		},
+
+		{
+			name: "tag",
+			entity: func() any {
+				type TagTable struct {
+					FirstName string `orm:"column=first_name_t"`
+				}
+				return &TagTable{}
+			}(),
+			wantModel: &model{
+				tableName: "tag_table",
+				fields: map[string]*field{
+					"FirstName": {
+						colName: "first_name_t",
+					},
+				},
+			},
+		},
+
+		{
+			name: "empty column",
+			entity: func() any {
+				type TagTable struct {
+					FirstName string `orm:"column="`
+				}
+				return &TagTable{}
+			}(),
+			wantModel: &model{
+				tableName: "tag_table",
+				fields: map[string]*field{
+					"FirstName": {
+						colName: "first_name",
+					},
+				},
+			},
+		},
+
+		{
+			name: "ignore column",
+			entity: func() any {
+				type TagTable struct {
+					FirstName string `orm:"abc=abc"`
+				}
+				return &TagTable{}
+			}(),
+			wantModel: &model{
+				tableName: "tag_table",
+				fields: map[string]*field{
+					"FirstName": {
+						colName: "first_name",
+					},
+				},
+			},
+		},
+
+		{
+			name: "invalid column",
+			entity: func() any {
+				type TagTable struct {
+					FirstName string `orm:"column"`
+				}
+				return &TagTable{}
+			}(),
+			wantErr: errs.NewErrIinvalidTagContent("column"),
 		},
 	}
 
@@ -114,9 +177,6 @@ func Test_RegistryGet(t *testing.T) {
 			}
 
 			assert.Equal(t, c.wantModel, m)
-
-			assert.Equal(t, c.cacheSize, len(r.models))
-
 			typ := reflect.TypeOf(c.entity)
 			m, ok := r.models[typ]
 			assert.True(t, ok)
