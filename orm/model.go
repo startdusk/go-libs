@@ -9,15 +9,40 @@ import (
 )
 
 const (
-	tagName = "column"
+	tagKeyColumn = "column"
 )
 
-type model struct {
-	tableName string
-	fields    map[string]*field
+type Registry interface {
+	Get(val any) (*Model, error)
+	Register(val any, opts ...ModelOption) (*Model, error)
 }
 
-type field struct {
+type ModelOption func(m *Model) error
+
+func ModelWithTableName(tableName string) ModelOption {
+	return func(m *Model) error {
+		m.tableName = tableName
+		return nil
+	}
+}
+
+func ModelWithColumnName(field string, colName string) ModelOption {
+	return func(m *Model) error {
+		fd, ok := m.fields[field]
+		if !ok {
+			return errs.NewErrUnknownField(field)
+		}
+		fd.colName = colName
+		return nil
+	}
+}
+
+type Model struct {
+	tableName string
+	fields    map[string]*Field
+}
+
+type Field struct {
 	// 列名
 	colName string
 }
@@ -28,7 +53,7 @@ type registry struct {
 	// 因为有同名结构体但表名不一样的需求
 	// 如: buyer下的User 和 seller下的User
 	// 那么reflect.Type就能很好的记录和区分这两个同名结构体
-	models map[reflect.Type]*model
+	models map[reflect.Type]*Model
 
 	// 保护map
 	// 也可以使用sync.Map, 但sync.Map有线程覆盖的问题
@@ -39,11 +64,11 @@ type registry struct {
 func newRegistry() *registry {
 	return &registry{
 		// 一个项目如果超过64张表, 说明需要拆分了
-		models: make(map[reflect.Type]*model, 64),
+		models: make(map[reflect.Type]*Model, 64),
 	}
 }
 
-// func (r *registry) get(val any) (*model, error) {
+// func (r *registry) Get(val any) (*Model, error) {
 // 	typ := reflect.TypeOf(val)
 // 	m, ok := r.models.Load(typ)
 // 	if !ok {
@@ -53,10 +78,10 @@ func newRegistry() *registry {
 // 		}
 // 	}
 // 	r.models.Store(typ, m) // 多线程同时执行到这里, 会出现线程覆盖的问题
-// 	return m.(*model), nil
+// 	return m.(*Model), nil
 // }
 
-func (r *registry) get(val any) (*model, error) {
+func (r *registry) Get(val any) (*Model, error) {
 	typ := reflect.TypeOf(val)
 	r.lock.RLock()
 	m, ok := r.models[typ]
@@ -66,43 +91,42 @@ func (r *registry) get(val any) (*model, error) {
 	}
 
 	r.lock.Lock()
-	defer r.lock.Unlock()
 	// double check 写法, 保证不重复创建对象
 	m, ok = r.models[typ]
+	r.lock.Unlock()
 	if ok {
 		return m, nil
 	}
 
-	m, err := r.parseModel(val)
+	m, err := r.Register(val)
 	if err != nil {
 		return nil, err
 	}
-	r.models[typ] = m
 
 	return m, nil
 }
 
 // 只支持输入指针类型的结构体
-func (r *registry) parseModel(entity any) (*model, error) {
+func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 	typ := reflect.TypeOf(entity)
 
 	if typ.Kind() != reflect.Ptr || typ.Elem().Kind() != reflect.Struct {
 		return nil, errs.ErrPointerOnly
 	}
-	typ = typ.Elem()
-	numField := typ.NumField()
-	fieldMap := make(map[string]*field, numField)
+	elemTyp := typ.Elem()
+	numField := elemTyp.NumField()
+	fieldMap := make(map[string]*Field, numField)
 	for i := 0; i < numField; i++ {
-		fd := typ.Field(i)
+		fd := elemTyp.Field(i)
 		pair, err := r.parseTag(fd.Tag)
 		if err != nil {
 			return nil, err
 		}
-		colName := pair[tagName]
+		colName := pair[tagKeyColumn]
 		if colName == "" {
 			colName = underscoreName(fd.Name)
 		}
-		fieldMap[fd.Name] = &field{
+		fieldMap[fd.Name] = &Field{
 			colName: colName,
 		}
 	}
@@ -112,13 +136,24 @@ func (r *registry) parseModel(entity any) (*model, error) {
 		tableName = tbl.TableName()
 	}
 	if tableName == "" {
-		tableName = underscoreName(typ.Name())
+		tableName = underscoreName(elemTyp.Name())
 	}
 
-	return &model{
+	m := &Model{
 		tableName: tableName,
 		fields:    fieldMap,
-	}, nil
+	}
+	for _, opt := range opts {
+		if err := opt(m); err != nil {
+			return nil, err
+		}
+	}
+
+	r.lock.Lock()
+	r.models[typ] = m
+	r.lock.Unlock()
+
+	return m, nil
 }
 
 func (r *registry) parseTag(tag reflect.StructTag) (map[string]string, error) {

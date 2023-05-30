@@ -11,7 +11,7 @@ type Selector[T any] struct {
 	where     []Predicate
 	sb        strings.Builder
 	args      []any
-	model     *model
+	model     *Model
 
 	db *DB
 }
@@ -34,7 +34,7 @@ func (s *Selector[T]) Where(where ...Predicate) *Selector[T] {
 
 func (s *Selector[T]) Build() (*Query, error) {
 	var err error
-	s.model, err = s.db.r.get(new(T))
+	s.model, err = s.db.r.Get(new(T))
 	if err != nil {
 		return nil, err
 	}

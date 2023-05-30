@@ -7,19 +7,22 @@ import (
 	"testing"
 )
 
-func Test_ParseModel(t *testing.T) {
+func Test_Register(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		entity    any
-		wantModel *model
+		wantModel *Model
 		wantErr   error
+
+		opts []ModelOption
 	}{
 		{
 			name:   "test pointer model",
 			entity: &TestModel{},
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "test_model",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"ID": {
 						colName: "id",
 					},
@@ -35,6 +38,33 @@ func Test_ParseModel(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			name:   "test pointer model with opts",
+			entity: &TestModel{},
+			wantModel: &Model{
+				tableName: "TEST_MODEL",
+				fields: map[string]*Field{
+					"ID": {
+						colName: "id",
+					},
+					"FirstName": {
+						colName: "firstname",
+					},
+					"LastName": {
+						colName: "last_name",
+					},
+					"Age": {
+						colName: "age",
+					},
+				},
+			},
+			opts: []ModelOption{
+				ModelWithTableName("TEST_MODEL"),
+				ModelWithColumnName("FirstName", "firstname"),
+			},
+		},
+
 		{
 			name:    "test struct model",
 			entity:  TestModel{},
@@ -60,7 +90,7 @@ func Test_ParseModel(t *testing.T) {
 	r := newRegistry()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			m, err := r.parseModel(c.entity)
+			m, err := r.Register(c.entity, c.opts...)
 			assert.Equal(t, c.wantErr, err)
 			if err != nil {
 				return
@@ -72,19 +102,20 @@ func Test_ParseModel(t *testing.T) {
 }
 
 func Test_RegistryGet(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 
 		entity    any
-		wantModel *model
+		wantModel *Model
 		wantErr   error
 	}{
 		{
 			name:   "test pointer model",
 			entity: &TestModel{},
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "test_model",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"ID": {
 						colName: "id",
 					},
@@ -109,9 +140,9 @@ func Test_RegistryGet(t *testing.T) {
 				}
 				return &TagTable{}
 			}(),
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "tag_table",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"FirstName": {
 						colName: "first_name_t",
 					},
@@ -127,9 +158,9 @@ func Test_RegistryGet(t *testing.T) {
 				}
 				return &TagTable{}
 			}(),
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "tag_table",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"FirstName": {
 						colName: "first_name",
 					},
@@ -145,9 +176,9 @@ func Test_RegistryGet(t *testing.T) {
 				}
 				return &TagTable{}
 			}(),
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "tag_table",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"FirstName": {
 						colName: "first_name",
 					},
@@ -158,9 +189,9 @@ func Test_RegistryGet(t *testing.T) {
 		{
 			name:   "empty table name",
 			entity: &EmptyTableName{},
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "empty_table_name",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"FirstName": {
 						colName: "first_name",
 					},
@@ -171,9 +202,9 @@ func Test_RegistryGet(t *testing.T) {
 		{
 			name:   "custom table name",
 			entity: &CustomTableName{},
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "custom_table_name_t",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"FirstName": {
 						colName: "first_name",
 					},
@@ -184,9 +215,9 @@ func Test_RegistryGet(t *testing.T) {
 		{
 			name:   "custom table name for ptr",
 			entity: &CustomTableNamePtr{},
-			wantModel: &model{
+			wantModel: &Model{
 				tableName: "custom_table_name_ptr_t",
-				fields: map[string]*field{
+				fields: map[string]*Field{
 					"FirstName": {
 						colName: "first_name",
 					},
@@ -209,7 +240,7 @@ func Test_RegistryGet(t *testing.T) {
 	r := newRegistry()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			m, err := r.get(c.entity)
+			m, err := r.Get(c.entity)
 			assert.Equal(t, c.wantErr, err)
 			if err != nil {
 				return
