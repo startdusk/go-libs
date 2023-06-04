@@ -3,6 +3,7 @@ package orm
 import (
 	"context"
 	"github.com/startdusk/go-libs/orm/internal/errs"
+	"reflect"
 	"strings"
 )
 
@@ -73,11 +74,76 @@ func (s *Selector[T]) Build() (*Query, error) {
 }
 
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
-	panic("impl")
+	q, err := s.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.db.QueryContext(ctx, q.SQL, q.Args...)
+	if err != nil {
+		return nil, err
+	}
+
+	if !rows.Next() {
+		// 返回要和sql包语义一致
+		return nil, ErrNoRows
+	}
+
+	// 获取 查询的 columns
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
+	entity := new(T)
+	vals := make([]any, 0, len(columns))
+	for _, colName := range columns {
+		// colName 是列名
+		for _, fd := range s.model.fields {
+			if fd.colName == colName {
+				// 反射创建一个实例
+				// 这里创建的实例是原本类型的指针类型
+				// 例如: fd.Type = int类型, 那么 val 就是 *int类型
+				val := reflect.New(fd.typ)
+				vals = append(vals, val.Interface())
+			}
+		}
+	}
+
+	if err := rows.Scan(vals...); err != nil {
+		return nil, err
+	}
+
+	// 把 scan 后的数据放到构造的entity中
+	value := reflect.ValueOf(entity)
+	for i, colName := range columns {
+		for _, fd := range s.model.fields {
+			if fd.colName == colName {
+				value.Elem().FieldByName(fd.goName).Set(reflect.ValueOf(vals[i]).Elem())
+			}
+		}
+	}
+	return entity, rows.Err()
 }
 
 func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
-	panic("impl")
+	q, err := s.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.db.db.QueryContext(ctx, q.SQL, q.Args...)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []*T
+	for rows.Next() {
+
+	}
+
+	return res, rows.Err()
 }
 
 func (s *Selector[T]) buildExpression(expr Expression) error {

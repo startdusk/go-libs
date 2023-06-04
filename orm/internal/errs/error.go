@@ -7,6 +7,7 @@ import (
 
 var (
 	ErrPointerOnly = errors.New("orm: 只支持指向结构体的一级指针")
+	ErrNoRows      = errors.New("orm: 没有数据")
 )
 
 func NewErrUnsupportedExpressionType(expr any) error {

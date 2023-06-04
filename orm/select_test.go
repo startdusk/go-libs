@@ -4,12 +4,18 @@ import (
 	"database/sql"
 	"testing"
 
+	"context"
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/startdusk/go-libs/orm/internal/errs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"errors"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func Test_Selector_Build(t *testing.T) {
-	db, err := NewDB()
+	db, err := OpenDB(memoryDB(t))
 	assert.NoError(t, err)
 	cases := []struct {
 		name    string
@@ -122,9 +128,80 @@ func Test_Selector_Build(t *testing.T) {
 	}
 }
 
+func Test_Selector_Get(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	db, err := OpenDB(mockDB)
+	assert.NoError(t, err)
+
+	// 对应 query error
+	queryError := errors.New("query error")
+	mock.ExpectQuery("SELECT .*").WillReturnError(queryError)
+
+	// 对应 no rows
+	rows := sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
+	mock.ExpectQuery("SELECT .*").WillReturnRows(rows)
+
+	// 对应 query row success
+	rows = sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
+	// 数据库查询出来的数据返回的都是文本类型, 所以这里可以用字符串
+	rows.AddRow("1", "Tom", "18", "Jerry")
+	mock.ExpectQuery("SELECT .*").WillReturnRows(rows)
+
+	cases := []struct {
+		name    string
+		s       *Selector[TestModel]
+		wantErr error
+		wantRes *TestModel
+	}{
+		{
+			name:    "invalid query",
+			s:       NewSelector[TestModel](db).Where(C("xxx").Eq(1)),
+			wantErr: errs.NewErrUnknownField("xxx"),
+		},
+		{
+			name:    "query error",
+			s:       NewSelector[TestModel](db).Where(C("ID").Eq(1)),
+			wantErr: queryError,
+		},
+		{
+			name:    "no rows",
+			s:       NewSelector[TestModel](db).Where(C("ID").Lt(1)),
+			wantErr: ErrNoRows,
+		},
+		{
+			name: "data",
+			s:    NewSelector[TestModel](db).Where(C("ID").Eq(1)),
+			wantRes: &TestModel{
+				ID:        1,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{Valid: true, String: "Jerry"},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res, err := c.s.Get(context.Background())
+			assert.Equal(t, c.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, c.wantRes, res)
+		})
+	}
+}
+
 type TestModel struct {
 	ID        int64
 	FirstName string
 	Age       int8
 	LastName  *sql.NullString
+}
+
+func memoryDB(t *testing.T) *sql.DB {
+	db, err := sql.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
+	require.NoError(t, err)
+	return db
 }

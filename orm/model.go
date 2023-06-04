@@ -19,6 +19,7 @@ type Registry interface {
 
 type ModelOption func(m *Model) error
 
+// ModelOption 里面定义的函数没有对输入进行严格的校验, 这些检验应该交个用户
 func ModelWithTableName(tableName string) ModelOption {
 	return func(m *Model) error {
 		m.tableName = tableName
@@ -26,6 +27,7 @@ func ModelWithTableName(tableName string) ModelOption {
 	}
 }
 
+// ModelOption 里面定义的函数没有对输入进行严格的校验, 这些检验应该交个用户
 func ModelWithColumnName(field string, colName string) ModelOption {
 	return func(m *Model) error {
 		fd, ok := m.fields[field]
@@ -43,8 +45,14 @@ type Model struct {
 }
 
 type Field struct {
+	// 字段名
+	goName string
+
 	// 列名
 	colName string
+
+	// 代表的是字段的类型
+	typ reflect.Type
 }
 
 // registry 代表元数据的注册中心
@@ -127,7 +135,12 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 			colName = underscoreName(fd.Name)
 		}
 		fieldMap[fd.Name] = &Field{
+			// 数据库字段的列名
 			colName: colName,
+			// 字段类型
+			typ: fd.Type,
+			// 字段名(结构体的字段名)
+			goName: fd.Name,
 		}
 	}
 
