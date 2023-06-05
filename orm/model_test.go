@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"database/sql"
 	"github.com/startdusk/go-libs/orm/internal/errs"
 	"github.com/stretchr/testify/assert"
 	"reflect"
@@ -10,71 +11,70 @@ import (
 func Test_Register(t *testing.T) {
 	t.Parallel()
 
-	var testModel = &TestModel{}
 	cases := []struct {
 		name      string
 		entity    any
 		wantModel *Model
 		wantErr   error
-
-		opts []ModelOption
+		fields    []*Field
+		opts      []ModelOption
 	}{
 		{
 			name:   "test pointer model",
-			entity: testModel,
+			entity: &TestModel{},
 			wantModel: &Model{
 				tableName: "test_model",
-				fields: map[string]*Field{
-					"ID": {
-						colName: "id",
-						goName:  "ID",
-						typ:     reflect.TypeOf(testModel.ID),
-					},
-					"FirstName": {
-						colName: "first_name",
-						goName:  "FirstName",
-						typ:     reflect.TypeOf(testModel.FirstName),
-					},
-					"LastName": {
-						colName: "last_name",
-						goName:  "LastName",
-						typ:     reflect.TypeOf(testModel.LastName),
-					},
-					"Age": {
-						colName: "age",
-						goName:  "Age",
-						typ:     reflect.TypeOf(testModel.Age),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "id",
+					goName:  "ID",
+					typ:     reflect.TypeOf(int64(0)),
+				},
+				{
+					colName: "first_name",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
+				},
+				{
+					colName: "last_name",
+					goName:  "LastName",
+					typ:     reflect.TypeOf(&sql.NullString{}),
+				},
+				{
+					colName: "age",
+					goName:  "Age",
+					typ:     reflect.TypeOf(int8(0)),
 				},
 			},
 		},
 
 		{
 			name:   "test pointer model with opts",
-			entity: testModel,
+			entity: &TestModel{},
 			wantModel: &Model{
 				tableName: "TEST_MODEL",
-				fields: map[string]*Field{
-					"ID": {
-						colName: "id",
-						goName:  "ID",
-						typ:     reflect.TypeOf(testModel.ID),
-					},
-					"FirstName": {
-						colName: "firstname",
-						goName:  "FirstName",
-						typ:     reflect.TypeOf(testModel.FirstName),
-					},
-					"LastName": {
-						colName: "last_name",
-						goName:  "LastName",
-						typ:     reflect.TypeOf(testModel.LastName),
-					},
-					"Age": {
-						colName: "age",
-						goName:  "Age",
-						typ:     reflect.TypeOf(testModel.Age),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "id",
+					goName:  "ID",
+					typ:     reflect.TypeOf(int64(0)),
+				},
+				{
+					colName: "firstname",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
+				},
+				{
+					colName: "last_name",
+					goName:  "LastName",
+					typ:     reflect.TypeOf(&sql.NullString{}),
+				},
+				{
+					colName: "age",
+					goName:  "Age",
+					typ:     reflect.TypeOf(int8(0)),
 				},
 			},
 			opts: []ModelOption{
@@ -113,7 +113,14 @@ func Test_Register(t *testing.T) {
 			if err != nil {
 				return
 			}
-
+			fieldMap := make(map[string]*Field)
+			columnMap := make(map[string]*Field)
+			for _, field := range c.fields {
+				fieldMap[field.goName] = field
+				columnMap[field.colName] = field
+			}
+			c.wantModel.fieldMap = fieldMap
+			c.wantModel.columnMap = columnMap
 			assert.Equal(t, c.wantModel, m)
 		})
 	}
@@ -122,40 +129,41 @@ func Test_Register(t *testing.T) {
 func Test_RegistryGet(t *testing.T) {
 	t.Parallel()
 
-	var testModel = &TestModel{}
 	cases := []struct {
 		name string
 
 		entity    any
 		wantModel *Model
 		wantErr   error
+
+		fields []*Field
 	}{
 		{
 			name:   "test pointer model",
-			entity: testModel,
+			entity: &TestModel{},
 			wantModel: &Model{
 				tableName: "test_model",
-				fields: map[string]*Field{
-					"ID": {
-						colName: "id",
-						goName:  "ID",
-						typ:     reflect.TypeOf(testModel.ID),
-					},
-					"FirstName": {
-						colName: "first_name",
-						goName:  "FirstName",
-						typ:     reflect.TypeOf(testModel.FirstName),
-					},
-					"LastName": {
-						colName: "last_name",
-						goName:  "LastName",
-						typ:     reflect.TypeOf(testModel.LastName),
-					},
-					"Age": {
-						colName: "age",
-						goName:  "Age",
-						typ:     reflect.TypeOf(testModel.Age),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "id",
+					goName:  "ID",
+					typ:     reflect.TypeOf(int64(0)),
+				},
+				{
+					colName: "first_name",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
+				},
+				{
+					colName: "last_name",
+					goName:  "LastName",
+					typ:     reflect.TypeOf(&sql.NullString{}),
+				},
+				{
+					colName: "age",
+					goName:  "Age",
+					typ:     reflect.TypeOf(int8(0)),
 				},
 			},
 		},
@@ -170,16 +178,13 @@ func Test_RegistryGet(t *testing.T) {
 			}(),
 			wantModel: &Model{
 				tableName: "tag_table",
-				fields: map[string]*Field{
-					"FirstName": {
-						colName: "first_name_t",
-						goName:  "FirstName",
-						typ: func() reflect.Type {
-							// 因为结构体只有一个字段, 没有对齐的问题, 所以可以直接使用原生类型的元数据
-							var a string
-							return reflect.TypeOf(a)
-						}(),
-					},
+			},
+
+			fields: []*Field{
+				{
+					colName: "first_name_t",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
 				},
 			},
 		},
@@ -194,15 +199,12 @@ func Test_RegistryGet(t *testing.T) {
 			}(),
 			wantModel: &Model{
 				tableName: "tag_table",
-				fields: map[string]*Field{
-					"FirstName": {
-						colName: "first_name",
-						goName:  "FirstName",
-						typ: func() reflect.Type {
-							var a string
-							return reflect.TypeOf(a)
-						}(),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "first_name",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
 				},
 			},
 		},
@@ -217,15 +219,12 @@ func Test_RegistryGet(t *testing.T) {
 			}(),
 			wantModel: &Model{
 				tableName: "tag_table",
-				fields: map[string]*Field{
-					"FirstName": {
-						colName: "first_name",
-						goName:  "FirstName",
-						typ: func() reflect.Type {
-							var a string
-							return reflect.TypeOf(a)
-						}(),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "first_name",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
 				},
 			},
 		},
@@ -235,15 +234,12 @@ func Test_RegistryGet(t *testing.T) {
 			entity: &EmptyTableName{},
 			wantModel: &Model{
 				tableName: "empty_table_name",
-				fields: map[string]*Field{
-					"FirstName": {
-						colName: "first_name",
-						goName:  "FirstName",
-						typ: func() reflect.Type {
-							var a string
-							return reflect.TypeOf(a)
-						}(),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "first_name",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
 				},
 			},
 		},
@@ -253,15 +249,12 @@ func Test_RegistryGet(t *testing.T) {
 			entity: &CustomTableName{},
 			wantModel: &Model{
 				tableName: "custom_table_name_t",
-				fields: map[string]*Field{
-					"FirstName": {
-						colName: "first_name",
-						goName:  "FirstName",
-						typ: func() reflect.Type {
-							var a string
-							return reflect.TypeOf(a)
-						}(),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "first_name",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
 				},
 			},
 		},
@@ -271,15 +264,12 @@ func Test_RegistryGet(t *testing.T) {
 			entity: &CustomTableNamePtr{},
 			wantModel: &Model{
 				tableName: "custom_table_name_ptr_t",
-				fields: map[string]*Field{
-					"FirstName": {
-						colName: "first_name",
-						goName:  "FirstName",
-						typ: func() reflect.Type {
-							var a string
-							return reflect.TypeOf(a)
-						}(),
-					},
+			},
+			fields: []*Field{
+				{
+					colName: "first_name",
+					goName:  "FirstName",
+					typ:     reflect.TypeOf(""),
 				},
 			},
 		},
@@ -305,10 +295,20 @@ func Test_RegistryGet(t *testing.T) {
 				return
 			}
 
+			fieldMap := make(map[string]*Field)
+			columnMap := make(map[string]*Field)
+			for _, field := range c.fields {
+				fieldMap[field.goName] = field
+				columnMap[field.colName] = field
+			}
+			c.wantModel.fieldMap = fieldMap
+			c.wantModel.columnMap = columnMap
+
 			assert.Equal(t, c.wantModel, m)
 			typ := reflect.TypeOf(c.entity)
 			m, ok := r.models[typ]
 			assert.True(t, ok)
+
 			assert.Equal(t, c.wantModel, m)
 		})
 	}

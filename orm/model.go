@@ -30,18 +30,26 @@ func ModelWithTableName(tableName string) ModelOption {
 // ModelOption 里面定义的函数没有对输入进行严格的校验, 这些检验应该交个用户
 func ModelWithColumnName(field string, colName string) ModelOption {
 	return func(m *Model) error {
-		fd, ok := m.fields[field]
+		fd, ok := m.fieldMap[field]
 		if !ok {
 			return errs.NewErrUnknownField(field)
 		}
+
+		// 同步更新 columnMap 的 colName(key)
+		delete(m.columnMap, fd.colName)
 		fd.colName = colName
+		m.columnMap[fd.colName] = fd
+
 		return nil
 	}
 }
 
 type Model struct {
 	tableName string
-	fields    map[string]*Field
+	// 字段名到字段定义的映射
+	fieldMap map[string]*Field
+	// 数据库列名到字段定义的映射
+	columnMap map[string]*Field
 }
 
 type Field struct {
@@ -124,6 +132,7 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 	elemTyp := typ.Elem()
 	numField := elemTyp.NumField()
 	fieldMap := make(map[string]*Field, numField)
+	columnMap := make(map[string]*Field, numField)
 	for i := 0; i < numField; i++ {
 		fd := elemTyp.Field(i)
 		pair, err := r.parseTag(fd.Tag)
@@ -134,7 +143,7 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 		if colName == "" {
 			colName = underscoreName(fd.Name)
 		}
-		fieldMap[fd.Name] = &Field{
+		field := &Field{
 			// 数据库字段的列名
 			colName: colName,
 			// 字段类型
@@ -142,6 +151,9 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 			// 字段名(结构体的字段名)
 			goName: fd.Name,
 		}
+
+		fieldMap[fd.Name] = field
+		columnMap[colName] = field
 	}
 
 	var tableName string
@@ -154,7 +166,8 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 
 	m := &Model{
 		tableName: tableName,
-		fields:    fieldMap,
+		fieldMap:  fieldMap,
+		columnMap: columnMap,
 	}
 	for _, opt := range opts {
 		if err := opt(m); err != nil {

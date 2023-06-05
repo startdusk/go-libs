@@ -98,17 +98,20 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
 	entity := new(T)
 	vals := make([]any, 0, len(columns))
+	valElems := make([]reflect.Value, 0, len(columns))
 	for _, colName := range columns {
 		// colName 是列名
-		for _, fd := range s.model.fields {
-			if fd.colName == colName {
-				// 反射创建一个实例
-				// 这里创建的实例是原本类型的指针类型
-				// 例如: fd.Type = int类型, 那么 val 就是 *int类型
-				val := reflect.New(fd.typ)
-				vals = append(vals, val.Interface())
-			}
+		fd, ok := s.model.columnMap[colName]
+		if !ok {
+			return nil, errs.NewErrUnknownColumn(colName)
 		}
+		// 反射创建一个实例
+		// 这里创建的实例是原本类型的指针类型
+		// 例如: fd.Type = int类型, 那么 val 就是 *int类型, 所以需要 取Elem() 获取它的实例, 而不是指针
+		val := reflect.New(fd.typ)
+		vals = append(vals, val.Interface())
+		// val.Elem() 就是 val 指向的数据
+		valElems = append(valElems, val.Elem())
 	}
 
 	if err := rows.Scan(vals...); err != nil {
@@ -116,13 +119,14 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	}
 
 	// 把 scan 后的数据放到构造的entity中
-	value := reflect.ValueOf(entity)
+	valueElem := reflect.ValueOf(entity).Elem()
 	for i, colName := range columns {
-		for _, fd := range s.model.fields {
-			if fd.colName == colName {
-				value.Elem().FieldByName(fd.goName).Set(reflect.ValueOf(vals[i]).Elem())
-			}
+		// colName 是列名
+		fd, ok := s.model.columnMap[colName]
+		if !ok {
+			return nil, errs.NewErrUnknownColumn(colName)
 		}
+		valueElem.FieldByName(fd.goName).Set(valElems[i])
 	}
 	return entity, rows.Err()
 }
@@ -138,9 +142,53 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 		return nil, err
 	}
 
+	if !rows.Next() {
+		// 返回要和sql包语义一致
+		return nil, ErrNoRows
+	}
+
+	// 获取 查询的 columns
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
+	vals := make([]any, 0, len(columns))
+	valElems := make([]reflect.Value, 0, len(columns))
+	for _, colName := range columns {
+		// colName 是列名
+		fd, ok := s.model.columnMap[colName]
+		if !ok {
+			return nil, errs.NewErrUnknownColumn(colName)
+		}
+		// 反射创建一个实例
+		// 这里创建的实例是原本类型的指针类型
+		// 例如: fd.Type = int类型, 那么 val 就是 *int类型, 所以需要 取Elem() 获取它的实例, 而不是指针
+		val := reflect.New(fd.typ)
+		vals = append(vals, val.Interface())
+		
+		// val.Elem() 就是 val 指向的数据
+		valElems = append(valElems, val.Elem())
+	}
+
 	var res []*T
 	for rows.Next() {
+		if err := rows.Scan(vals...); err != nil {
+			return nil, err
+		}
 
+		entity := new(T)
+		// 把 scan 后的数据放到构造的entity中
+		valueElem := reflect.ValueOf(entity).Elem()
+		for i, colName := range columns {
+			// colName 是列名
+			fd, ok := s.model.columnMap[colName]
+			if !ok {
+				return nil, errs.NewErrUnknownColumn(colName)
+			}
+			valueElem.FieldByName(fd.goName).Set(valElems[i])
+		}
 	}
 
 	return res, rows.Err()
@@ -182,7 +230,7 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column: // 代表列名, 直接拼接列名
-		fd, ok := s.model.fields[exp.name]
+		fd, ok := s.model.fieldMap[exp.name]
 		if !ok {
 			return errs.NewErrUnknownField(exp.name)
 		}

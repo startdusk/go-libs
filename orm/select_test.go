@@ -128,6 +128,10 @@ func Test_Selector_Build(t *testing.T) {
 	}
 }
 
+
+// TODO: 待测试这个
+func Test_Selector_GetMulit(t *testing.T) {}
+
 func Test_Selector_Get(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	assert.NoError(t, err)
@@ -141,6 +145,12 @@ func Test_Selector_Get(t *testing.T) {
 	// 对应 no rows
 	rows := sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
 	mock.ExpectQuery("SELECT .*").WillReturnRows(rows)
+
+	// // 对应 scan error
+	// rows = sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
+	// // 本来ID应该应该是数字类型, 但故意给了个abc, mock scan error
+	// rows.AddRow("abc", "Tom", "18", "Jerry")
+	// mock.ExpectQuery("SELECT .*").WillReturnRows(rows)
 
 	// 对应 query row success
 	rows = sqlmock.NewRows([]string{"id", "first_name", "age", "last_name"})
@@ -169,6 +179,11 @@ func Test_Selector_Get(t *testing.T) {
 			s:       NewSelector[TestModel](db).Where(C("ID").Lt(1)),
 			wantErr: ErrNoRows,
 		},
+		// {
+		// 	name:    "scan error",
+		// 	s:       NewSelector[TestModel](db).Where(C("ID").Lt(1)),
+		// 	wantErr: errors.New(""), // 很难构造这个 rows.Scan 的错误
+		// },
 		{
 			name: "data",
 			s:    NewSelector[TestModel](db).Where(C("ID").Eq(1)),
