@@ -167,7 +167,7 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 		// 例如: fd.Type = int类型, 那么 val 就是 *int类型, 所以需要 取Elem() 获取它的实例, 而不是指针
 		val := reflect.New(fd.typ)
 		vals = append(vals, val.Interface())
-		
+
 		// val.Elem() 就是 val 指向的数据
 		valElems = append(valElems, val.Elem())
 	}
