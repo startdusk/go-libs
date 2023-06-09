@@ -3,8 +3,10 @@ package orm
 import (
 	"context"
 	"github.com/startdusk/go-libs/orm/internal/errs"
+	"github.com/startdusk/go-libs/orm/model"
 	"reflect"
 	"strings"
+	// "unsafe"
 )
 
 type Selector[T any] struct {
@@ -12,7 +14,7 @@ type Selector[T any] struct {
 	where     []Predicate
 	sb        strings.Builder
 	args      []any
-	model     *Model
+	model     *model.Model
 
 	db *DB
 }
@@ -45,7 +47,7 @@ func (s *Selector[T]) Build() (*Query, error) {
 
 		// 这里给表名加 ``
 		s.sb.WriteByte('`')
-		s.sb.WriteString(s.model.tableName)
+		s.sb.WriteString(s.model.TableName)
 		s.sb.WriteByte('`')
 	} else {
 		// 这里是用户传进来的表名, 用户应该保证它的正确性
@@ -101,14 +103,14 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	valElems := make([]reflect.Value, 0, len(columns))
 	for _, colName := range columns {
 		// colName 是列名
-		fd, ok := s.model.columnMap[colName]
+		fd, ok := s.model.ColumnMap[colName]
 		if !ok {
 			return nil, errs.NewErrUnknownColumn(colName)
 		}
 		// 反射创建一个实例
 		// 这里创建的实例是原本类型的指针类型
 		// 例如: fd.Type = int类型, 那么 val 就是 *int类型, 所以需要 取Elem() 获取它的实例, 而不是指针
-		val := reflect.New(fd.typ)
+		val := reflect.New(fd.Type)
 		vals = append(vals, val.Interface())
 		// val.Elem() 就是 val 指向的数据
 		valElems = append(valElems, val.Elem())
@@ -122,11 +124,11 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	valueElem := reflect.ValueOf(entity).Elem()
 	for i, colName := range columns {
 		// colName 是列名
-		fd, ok := s.model.columnMap[colName]
+		fd, ok := s.model.ColumnMap[colName]
 		if !ok {
 			return nil, errs.NewErrUnknownColumn(colName)
 		}
-		valueElem.FieldByName(fd.goName).Set(valElems[i])
+		valueElem.FieldByName(fd.GoName).Set(valElems[i])
 	}
 	return entity, rows.Err()
 }
@@ -158,14 +160,14 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 	valElems := make([]reflect.Value, 0, len(columns))
 	for _, colName := range columns {
 		// colName 是列名
-		fd, ok := s.model.columnMap[colName]
+		fd, ok := s.model.ColumnMap[colName]
 		if !ok {
 			return nil, errs.NewErrUnknownColumn(colName)
 		}
 		// 反射创建一个实例
 		// 这里创建的实例是原本类型的指针类型
 		// 例如: fd.Type = int类型, 那么 val 就是 *int类型, 所以需要 取Elem() 获取它的实例, 而不是指针
-		val := reflect.New(fd.typ)
+		val := reflect.New(fd.Type)
 		vals = append(vals, val.Interface())
 
 		// val.Elem() 就是 val 指向的数据
@@ -183,16 +185,68 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 		valueElem := reflect.ValueOf(entity).Elem()
 		for i, colName := range columns {
 			// colName 是列名
-			fd, ok := s.model.columnMap[colName]
+			fd, ok := s.model.ColumnMap[colName]
 			if !ok {
 				return nil, errs.NewErrUnknownColumn(colName)
 			}
-			valueElem.FieldByName(fd.goName).Set(valElems[i])
+			valueElem.FieldByName(fd.GoName).Set(valElems[i])
 		}
 	}
 
 	return res, rows.Err()
 }
+
+// // 使用 unsafe
+// func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
+// 	q, err := s.Build()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	rows, err := s.db.db.QueryContext(ctx, q.SQL, q.Args...)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if !rows.Next() {
+// 		// 返回要和sql包语义一致
+// 		return nil, ErrNoRows
+// 	}
+
+// 	// 获取 查询的 columns
+// 	columns, err := rows.Columns()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
+// 	vals := make([]any, 0, len(columns))
+// 	entity := new(T)
+// 	// 起始地址
+// 	address := reflect.ValueOf(entity).UnsafePointer()
+// 	for _, colName := range columns {
+// 		// colName 是列名
+// 		fd, ok := s.model.ColumnMap[colName]
+// 		if !ok {
+// 			return nil, errs.NewErrUnknownColumn(colName)
+// 		}
+// 		// 字段地址 = 起始地址 + 偏移量
+// 		fdAddress := unsafe.Pointer(uintptr(address) + fd.Offset)
+// 		// 反射在特定的地址上, 创建一个特定类型的实例
+// 		// 这里创建的实例是原本类型的指针类型
+// 		// 例如: fd.Type = int类型, 那么 val 就是 *int类型
+// 		val := reflect.NewAt(fd.Type, fdAddress)
+
+// 		vals = append(vals, val.Interface())
+// 	}
+
+// 	// 到这里, 因为已经通过 unsafe 创建了对象, 所以 scan 就已经是对对象的字段赋值
+// 	if err := rows.Scan(vals...); err != nil {
+// 		return nil, err
+// 	}
+
+// 	return entity, rows.Err()
+// }
 
 func (s *Selector[T]) buildExpression(expr Expression) error {
 	switch exp := expr.(type) {
@@ -230,12 +284,12 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column: // 代表列名, 直接拼接列名
-		fd, ok := s.model.fieldMap[exp.name]
+		fd, ok := s.model.FieldMap[exp.name]
 		if !ok {
 			return errs.NewErrUnknownField(exp.name)
 		}
 		s.sb.WriteByte('`')
-		s.sb.WriteString(fd.colName)
+		s.sb.WriteString(fd.ColName)
 		s.sb.WriteByte('`')
 	case value: // 代表参数, 加入参数列表
 		s.sb.WriteString("?")

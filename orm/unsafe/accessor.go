@@ -20,7 +20,7 @@ func NewUnsafeAccessor(entity any) *UnsafeAccesser {
 		fd := typ.Field(i)
 		fields[fd.Name] = FieldMeta{
 			Offset: fd.Offset,
-			typ:    fd.Type,
+			Type:   fd.Type,
 		}
 	}
 	val := reflect.ValueOf(entity)
@@ -43,7 +43,7 @@ func (a *UnsafeAccesser) Field(field string) (any, error) {
 	// return *(*int)(fdAddress), nil
 
 	// 如果不知道类型, 就这么读取类型字段的值
-	return reflect.NewAt(fd.typ, fdAddress).Elem().Interface(), nil
+	return reflect.NewAt(fd.Type, fdAddress).Elem().Interface(), nil
 }
 
 func (a *UnsafeAccesser) SetField(field string, val any) error {
@@ -57,11 +57,11 @@ func (a *UnsafeAccesser) SetField(field string, val any) error {
 	// *(*int)(fdAddress) = val.(int)
 
 	// 如果不知道类型, 就这么设置类型字段的值
-	reflect.NewAt(fd.typ, fdAddress).Elem().Set(reflect.ValueOf(val))
+	reflect.NewAt(fd.Type, fdAddress).Elem().Set(reflect.ValueOf(val))
 	return nil
 }
 
 type FieldMeta struct {
 	Offset uintptr
-	typ    reflect.Type
+	Type   reflect.Type
 }

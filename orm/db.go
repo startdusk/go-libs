@@ -2,12 +2,13 @@ package orm
 
 import (
 	"database/sql"
+	"github.com/startdusk/go-libs/orm/model"
 )
 
 type DBOption func(db *DB)
 
 type DB struct {
-	r  *registry
+	r  model.Registry
 	db *sql.DB
 }
 
@@ -22,7 +23,7 @@ func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
 
 func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	newDB := &DB{
-		r:  newRegistry(),
+		r:  model.NewRegistry(),
 		db: db,
 	}
 

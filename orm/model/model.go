@@ -1,4 +1,4 @@
-package orm
+package model
 
 import (
 	"github.com/startdusk/go-libs/orm/internal/errs"
@@ -12,6 +12,10 @@ const (
 	tagKeyColumn = "column"
 )
 
+type TableName interface {
+	TableName() string
+}
+
 type Registry interface {
 	Get(val any) (*Model, error)
 	Register(val any, opts ...ModelOption) (*Model, error)
@@ -22,7 +26,7 @@ type ModelOption func(m *Model) error
 // ModelOption 里面定义的函数没有对输入进行严格的校验, 这些检验应该交个用户
 func ModelWithTableName(tableName string) ModelOption {
 	return func(m *Model) error {
-		m.tableName = tableName
+		m.TableName = tableName
 		return nil
 	}
 }
@@ -30,37 +34,40 @@ func ModelWithTableName(tableName string) ModelOption {
 // ModelOption 里面定义的函数没有对输入进行严格的校验, 这些检验应该交个用户
 func ModelWithColumnName(field string, colName string) ModelOption {
 	return func(m *Model) error {
-		fd, ok := m.fieldMap[field]
+		fd, ok := m.FieldMap[field]
 		if !ok {
 			return errs.NewErrUnknownField(field)
 		}
 
 		// 同步更新 columnMap 的 colName(key)
-		delete(m.columnMap, fd.colName)
-		fd.colName = colName
-		m.columnMap[fd.colName] = fd
+		delete(m.ColumnMap, fd.ColName)
+		fd.ColName = colName
+		m.ColumnMap[fd.ColName] = fd
 
 		return nil
 	}
 }
 
 type Model struct {
-	tableName string
+	TableName string
 	// 字段名到字段定义的映射
-	fieldMap map[string]*Field
+	FieldMap map[string]*Field
 	// 数据库列名到字段定义的映射
-	columnMap map[string]*Field
+	ColumnMap map[string]*Field
 }
 
 type Field struct {
 	// 字段名
-	goName string
+	GoName string
 
 	// 列名
-	colName string
+	ColName string
 
 	// 代表的是字段的类型
-	typ reflect.Type
+	Type reflect.Type
+
+	// 字段相对于结构体本身的偏移量
+	Offset uintptr
 }
 
 // registry 代表元数据的注册中心
@@ -77,7 +84,7 @@ type registry struct {
 	lock sync.RWMutex
 }
 
-func newRegistry() *registry {
+func NewRegistry() *registry {
 	return &registry{
 		// 一个项目如果超过64张表, 说明需要拆分了
 		models: make(map[reflect.Type]*Model, 64),
@@ -145,11 +152,12 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 		}
 		field := &Field{
 			// 数据库字段的列名
-			colName: colName,
+			ColName: colName,
 			// 字段类型
-			typ: fd.Type,
+			Type: fd.Type,
 			// 字段名(结构体的字段名)
-			goName: fd.Name,
+			GoName: fd.Name,
+			Offset: fd.Offset,
 		}
 
 		fieldMap[fd.Name] = field
@@ -165,9 +173,9 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 	}
 
 	m := &Model{
-		tableName: tableName,
-		fieldMap:  fieldMap,
-		columnMap: columnMap,
+		TableName: tableName,
+		FieldMap:  fieldMap,
+		ColumnMap: columnMap,
 	}
 	for _, opt := range opts {
 		if err := opt(m); err != nil {
