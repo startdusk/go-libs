@@ -21,7 +21,8 @@ type Predicate struct {
 	right Expression
 }
 
-func (p Predicate) expr() {}
+func (p Predicate) selectable() {}
+func (p Predicate) expr()       {}
 
 func C(name string) Column {
 	return Column{name: name}
@@ -57,8 +58,3 @@ type value struct {
 }
 
 func (v value) expr() {}
-
-// Expression 是一个标记接口, 代表表达式
-type Expression interface {
-	expr()
-}

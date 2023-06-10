@@ -12,7 +12,7 @@ func (c Column) Gt(arg any) Predicate {
 	return Predicate{
 		left:  c,
 		op:    opGt,
-		right: value{val: arg},
+		right: valueOf(arg),
 	}
 }
 
@@ -20,7 +20,7 @@ func (c Column) Lt(arg any) Predicate {
 	return Predicate{
 		left:  c,
 		op:    opLt,
-		right: value{val: arg},
+		right: valueOf(arg),
 	}
 }
 
@@ -28,6 +28,15 @@ func (c Column) Eq(arg any) Predicate {
 	return Predicate{
 		left:  c,
 		op:    opEq,
-		right: value{val: arg},
+		right: valueOf(arg),
+	}
+}
+
+func valueOf(arg any) Expression {
+	switch val := arg.(type) {
+	case Expression:
+		return val
+	default:
+		return value{val: val}
 	}
 }

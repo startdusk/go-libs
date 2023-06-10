@@ -36,6 +36,76 @@ func Test_Selector_Select(t *testing.T) {
 			q:       NewSelector[TestModel](db).Select(C("Invalid")),
 			wantErr: errs.NewErrUnknownField("Invalid"),
 		},
+		{
+			name:    "AVG Invalid",
+			q:       NewSelector[TestModel](db).Select(Avg("Invalid")),
+			wantErr: errs.NewErrUnknownField("Invalid"),
+		},
+		{
+			name: "AVG",
+			q:    NewSelector[TestModel](db).Select(Avg("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT AVG(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "SUM",
+			q:    NewSelector[TestModel](db).Select(Sum("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT SUM(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "COUNT",
+			q:    NewSelector[TestModel](db).Select(Count("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT COUNT(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "MAX",
+			q:    NewSelector[TestModel](db).Select(Max("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MAX(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "MIN",
+			q:    NewSelector[TestModel](db).Select(Min("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MIN(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "multiple aggregate",
+			q:    NewSelector[TestModel](db).Select(Max("Age"), Min("Age")),
+			wantQuery: &Query{
+				SQL: "SELECT MAX(`age`), MIN(`age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "raw expression",
+			q:    NewSelector[TestModel](db).Select(Raw("COUNT(DISTINCT `age`)")),
+			wantQuery: &Query{
+				SQL: "SELECT COUNT(DISTINCT `age`) FROM `test_model`;",
+			},
+		},
+		{
+			name: "raw expression as predicate",
+			q:    NewSelector[TestModel](db).Where(Raw("`age`<?", 18).AsPredicate()),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE (`age`<?);",
+				Args: []any{18},
+			},
+		},
+		{
+			name: "raw expression used in predicate",
+			q:    NewSelector[TestModel](db).Where(C("ID").Eq(Raw("`age`+?", 1))),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id` = (`age`+?);",
+				Args: []any{1},
+			},
+		},
 	}
 
 	for _, c := range cases {

@@ -9,6 +9,7 @@ import (
 
 // Selectable select 指定列
 // 避免用户使用数据库列 存在耦合问题(用户应该使用Go结构体的字段名, 就能与数据库表字段解耦)
+// 使用Go的结构体字段名同时也可以避免传入的SQL列名存在SQL注入问题
 type Selectable interface {
 	selectable()
 }
@@ -54,20 +55,11 @@ func (s *Selector[T]) Build() (*Query, error) {
 	}
 
 	s.sb.WriteString("SELECT ")
-	if len(s.columns) > 0 {
-		for i, col := range s.columns {
-			if i > 0 {
-				s.sb.WriteString(", ")
-			}
-			if err := s.buildColumn(col.(Column)); err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		// 没有指定列
-		s.sb.WriteByte('*')
+	if err := s.buildSelectColumns(); err != nil {
+		return nil, err
 	}
 	s.sb.WriteString(" FROM ")
+
 	if s.tableName == "" {
 
 		// 这里给表名加 ``
@@ -175,9 +167,11 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 
-		s.sb.WriteByte(' ')
-		s.sb.WriteString(exp.op.String())
-		s.sb.WriteByte(' ')
+		if exp.op != "" {
+			s.sb.WriteByte(' ')
+			s.sb.WriteString(exp.op.String())
+			s.sb.WriteByte(' ')
+		}
 
 		_, rok := exp.right.(Predicate)
 		if rok {
@@ -190,9 +184,14 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column: // 代表列名, 直接拼接列名
-		if err := s.buildColumn(exp); err != nil {
+		if err := s.buildColumn(exp.name); err != nil {
 			return err
 		}
+	case RawExpr:
+		s.sb.WriteByte('(')
+		s.sb.WriteString(exp.raw)
+		s.addArg(exp.args...)
+		s.sb.WriteByte(')')
 	case value: // 代表参数, 加入参数列表
 		s.sb.WriteString("?")
 		s.addArg(exp.val)
@@ -204,10 +203,46 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 	return nil
 }
 
-func (s *Selector[T]) buildColumn(c Column) error {
-	fd, ok := s.model.FieldMap[c.name]
+// buildSelectColumns 构建 SELECT 的列
+func (s *Selector[T]) buildSelectColumns() error {
+	if len(s.columns) == 0 {
+		// 没有指定列
+		s.sb.WriteByte('*')
+		return nil
+	}
+	for i, col := range s.columns {
+		if i > 0 {
+			s.sb.WriteString(", ")
+		}
+		switch c := col.(type) {
+		case Column:
+			if err := s.buildColumn(c.name); err != nil {
+				return err
+			}
+		case Aggregate:
+			// 聚合函数名
+			s.sb.WriteString(c.fn)
+			s.sb.WriteByte('(')
+			// 聚合字段名
+			if err := s.buildColumn(c.arg); err != nil {
+				return err
+			}
+			s.sb.WriteByte(')')
+		case RawExpr:
+			// 用户输入SQL
+			s.sb.WriteString(c.raw)
+			s.addArg(c.args...)
+		default:
+			return errs.NewErrUnsupportedExpressionType(col)
+		}
+	}
+	return nil
+}
+
+func (s *Selector[T]) buildColumn(colName string) error {
+	fd, ok := s.model.FieldMap[colName]
 	if !ok {
-		return errs.NewErrUnknownField(c.name)
+		return errs.NewErrUnknownField(colName)
 	}
 	s.sb.WriteByte('`')
 	s.sb.WriteString(fd.ColName)
@@ -215,9 +250,13 @@ func (s *Selector[T]) buildColumn(c Column) error {
 	return nil
 }
 
-func (s *Selector[T]) addArg(val any) {
+func (s *Selector[T]) addArg(vals ...any) {
+	if len(vals) == 0 {
+		return
+	}
+
 	if s.args == nil {
 		s.args = make([]any, 0, 8)
 	}
-	s.args = append(s.args, val)
+	s.args = append(s.args, vals...)
 }
