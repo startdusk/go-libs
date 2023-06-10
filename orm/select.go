@@ -4,9 +4,7 @@ import (
 	"context"
 	"github.com/startdusk/go-libs/orm/internal/errs"
 	"github.com/startdusk/go-libs/orm/model"
-	"reflect"
 	"strings"
-	// "unsafe"
 )
 
 type Selector[T any] struct {
@@ -91,46 +89,13 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, ErrNoRows
 	}
 
-	// 获取 查询的 columns
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
 	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
 	entity := new(T)
-	vals := make([]any, 0, len(columns))
-	valElems := make([]reflect.Value, 0, len(columns))
-	for _, colName := range columns {
-		// colName 是列名
-		fd, ok := s.model.ColumnMap[colName]
-		if !ok {
-			return nil, errs.NewErrUnknownColumn(colName)
-		}
-		// 反射创建一个实例
-		// 这里创建的实例是原本类型的指针类型
-		// 例如: fd.Type = int类型, 那么 val 就是 *int类型, 所以需要 取Elem() 获取它的实例, 而不是指针
-		val := reflect.New(fd.Type)
-		vals = append(vals, val.Interface())
-		// val.Elem() 就是 val 指向的数据
-		valElems = append(valElems, val.Elem())
-	}
-
-	if err := rows.Scan(vals...); err != nil {
-		return nil, err
-	}
-
-	// 把 scan 后的数据放到构造的entity中
-	valueElem := reflect.ValueOf(entity).Elem()
-	for i, colName := range columns {
-		// colName 是列名
-		fd, ok := s.model.ColumnMap[colName]
-		if !ok {
-			return nil, errs.NewErrUnknownColumn(colName)
-		}
-		valueElem.FieldByName(fd.GoName).Set(valElems[i])
-	}
-	return entity, rows.Err()
+	// 接口定义好之后, 就两件事情, 一个是利用新接口的方法改造上层
+	// 一个是提供不同的实现
+	val := s.db.creator(s.model, entity)
+	err = val.SetColumns(rows)
+	return entity, err
 }
 
 func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
@@ -149,104 +114,18 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 		return nil, ErrNoRows
 	}
 
-	// 获取 查询的 columns
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
-	vals := make([]any, 0, len(columns))
-	valElems := make([]reflect.Value, 0, len(columns))
-	for _, colName := range columns {
-		// colName 是列名
-		fd, ok := s.model.ColumnMap[colName]
-		if !ok {
-			return nil, errs.NewErrUnknownColumn(colName)
-		}
-		// 反射创建一个实例
-		// 这里创建的实例是原本类型的指针类型
-		// 例如: fd.Type = int类型, 那么 val 就是 *int类型, 所以需要 取Elem() 获取它的实例, 而不是指针
-		val := reflect.New(fd.Type)
-		vals = append(vals, val.Interface())
-
-		// val.Elem() 就是 val 指向的数据
-		valElems = append(valElems, val.Elem())
-	}
-
 	var res []*T
 	for rows.Next() {
-		if err := rows.Scan(vals...); err != nil {
+		entity := new(T)
+		val := s.db.creator(s.model, entity)
+		if err := val.SetColumns(rows); err != nil {
 			return nil, err
 		}
-
-		entity := new(T)
-		// 把 scan 后的数据放到构造的entity中
-		valueElem := reflect.ValueOf(entity).Elem()
-		for i, colName := range columns {
-			// colName 是列名
-			fd, ok := s.model.ColumnMap[colName]
-			if !ok {
-				return nil, errs.NewErrUnknownColumn(colName)
-			}
-			valueElem.FieldByName(fd.GoName).Set(valElems[i])
-		}
+		res = append(res, entity)
 	}
 
-	return res, rows.Err()
+	return res, nil
 }
-
-// // 使用 unsafe
-// func (s *Selector[T]) GetV1(ctx context.Context) (*T, error) {
-// 	q, err := s.Build()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	rows, err := s.db.db.QueryContext(ctx, q.SQL, q.Args...)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	if !rows.Next() {
-// 		// 返回要和sql包语义一致
-// 		return nil, ErrNoRows
-// 	}
-
-// 	// 获取 查询的 columns
-// 	columns, err := rows.Columns()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
-// 	vals := make([]any, 0, len(columns))
-// 	entity := new(T)
-// 	// 起始地址
-// 	address := reflect.ValueOf(entity).UnsafePointer()
-// 	for _, colName := range columns {
-// 		// colName 是列名
-// 		fd, ok := s.model.ColumnMap[colName]
-// 		if !ok {
-// 			return nil, errs.NewErrUnknownColumn(colName)
-// 		}
-// 		// 字段地址 = 起始地址 + 偏移量
-// 		fdAddress := unsafe.Pointer(uintptr(address) + fd.Offset)
-// 		// 反射在特定的地址上, 创建一个特定类型的实例
-// 		// 这里创建的实例是原本类型的指针类型
-// 		// 例如: fd.Type = int类型, 那么 val 就是 *int类型
-// 		val := reflect.NewAt(fd.Type, fdAddress)
-
-// 		vals = append(vals, val.Interface())
-// 	}
-
-// 	// 到这里, 因为已经通过 unsafe 创建了对象, 所以 scan 就已经是对对象的字段赋值
-// 	if err := rows.Scan(vals...); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return entity, rows.Err()
-// }
 
 func (s *Selector[T]) buildExpression(expr Expression) error {
 	switch exp := expr.(type) {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/startdusk/go-libs/orm/internal/errs"
+	"github.com/startdusk/go-libs/orm/internal/valuer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -214,8 +215,62 @@ type TestModel struct {
 	LastName  *sql.NullString
 }
 
+func (t TestModel) CreateSQL() string {
+	return `
+		CREATE TABLE IF NOT EXISTS test_model (
+			id INTEGER PRIMARY KEY,
+			first_name TEXT NOT NULL,
+			age INTEGER,
+			last_name TEXT NOT NULL
+		)
+	`
+}
+
 func memoryDB(t *testing.T) *sql.DB {
 	db, err := sql.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
 	require.NoError(t, err)
 	return db
+}
+
+// go test -bench=BenchmarkQueriesGet -benchtime=10000x -benchmem
+func BenchmarkQueriesGet(b *testing.B) {
+	db, err := Open("sqlite3", "file:benchmark_get.db?cache=shared&mode=memory")
+	if err != nil {
+		b.Fatal(err)
+	}
+	testModel := TestModel{}
+	if _, err := db.db.ExecContext(context.Background(), testModel.CreateSQL()); err != nil {
+		b.Fatal(err)
+	}
+
+	res, err := db.db.Exec("INSERT INTO `test_model`(`id`, `first_name`, `age`, `last_name`) VALUES (?, ?, ?, ?)", 12, "Tom", 18, "Jerry")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		b.Fatal(err)
+	}
+	if affected == 0 {
+		b.Fatal()
+	}
+
+	b.Run("unsafe", func(b *testing.B) {
+		db.creator = valuer.NewUnsafeValue
+		for i := 0; i < b.N; i++ {
+			if _, err := NewSelector[TestModel](db).Get(context.Background()); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("reflect", func(b *testing.B) {
+		db.creator = valuer.NewReflectValue
+		for i := 0; i < b.N; i++ {
+			if _, err := NewSelector[TestModel](db).Get(context.Background()); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }

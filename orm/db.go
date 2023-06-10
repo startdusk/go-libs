@@ -3,6 +3,8 @@ package orm
 import (
 	"database/sql"
 	"github.com/startdusk/go-libs/orm/model"
+
+	"github.com/startdusk/go-libs/orm/internal/valuer"
 )
 
 type DBOption func(db *DB)
@@ -10,6 +12,8 @@ type DBOption func(db *DB)
 type DB struct {
 	r  model.Registry
 	db *sql.DB
+
+	creator valuer.Creator
 }
 
 func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
@@ -23,8 +27,9 @@ func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
 
 func OpenDB(db *sql.DB, opts ...DBOption) (*DB, error) {
 	newDB := &DB{
-		r:  model.NewRegistry(),
-		db: db,
+		r:       model.NewRegistry(),
+		db:      db,
+		creator: valuer.NewUnsafeValue,
 	}
 
 	for _, opt := range opts {
@@ -48,4 +53,16 @@ func MustOpen(driver string, dataSourceName string, opts ...DBOption) *DB {
 		panic(err)
 	}
 	return newDB
+}
+
+func DBUseReflect() DBOption {
+	return func(db *DB) {
+		db.creator = valuer.NewReflectValue
+	}
+}
+
+func DBWithRegistry(r model.Registry) DBOption {
+	return func(db *DB) {
+		db.r = r
+	}
 }
