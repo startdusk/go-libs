@@ -15,6 +15,41 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func Test_Selector_Select(t *testing.T) {
+	db, err := OpenDB(memoryDB(t))
+	assert.NoError(t, err)
+	cases := []struct {
+		name      string
+		q         QueryBuilder
+		wantQuery *Query
+		wantErr   error
+	}{
+		{
+			name: "multiple columns",
+			q:    NewSelector[TestModel](db).Select(C("FirstName"), C("LastName")),
+			wantQuery: &Query{
+				SQL: "SELECT `first_name`, `last_name` FROM `test_model`;",
+			},
+		},
+		{
+			name:    "Invalid",
+			q:       NewSelector[TestModel](db).Select(C("Invalid")),
+			wantErr: errs.NewErrUnknownField("Invalid"),
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			query, err := c.q.Build()
+			assert.Equal(t, c.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, c.wantQuery, query)
+		})
+	}
+}
+
 func Test_Selector_Build(t *testing.T) {
 	db, err := OpenDB(memoryDB(t))
 	assert.NoError(t, err)

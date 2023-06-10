@@ -7,12 +7,20 @@ import (
 	"strings"
 )
 
+// Selectable select 指定列
+// 避免用户使用数据库列 存在耦合问题(用户应该使用Go结构体的字段名, 就能与数据库表字段解耦)
+type Selectable interface {
+	selectable()
+}
+
 type Selector[T any] struct {
 	tableName string
 	where     []Predicate
 	sb        strings.Builder
 	args      []any
 	model     *model.Model
+	// 指定 select 的列
+	columns []Selectable
 
 	db *DB
 }
@@ -21,6 +29,11 @@ func NewSelector[T any](db *DB) *Selector[T] {
 	return &Selector[T]{
 		db: db,
 	}
+}
+
+func (s *Selector[T]) Select(cols ...Selectable) *Selector[T] {
+	s.columns = cols
+	return s
 }
 
 func (s *Selector[T]) From(tableName string) *Selector[T] {
@@ -40,7 +53,21 @@ func (s *Selector[T]) Build() (*Query, error) {
 		return nil, err
 	}
 
-	s.sb.WriteString("SELECT * FROM ")
+	s.sb.WriteString("SELECT ")
+	if len(s.columns) > 0 {
+		for i, col := range s.columns {
+			if i > 0 {
+				s.sb.WriteString(", ")
+			}
+			if err := s.buildColumn(col.(Column)); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		// 没有指定列
+		s.sb.WriteByte('*')
+	}
+	s.sb.WriteString(" FROM ")
 	if s.tableName == "" {
 
 		// 这里给表名加 ``
@@ -163,13 +190,9 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column: // 代表列名, 直接拼接列名
-		fd, ok := s.model.FieldMap[exp.name]
-		if !ok {
-			return errs.NewErrUnknownField(exp.name)
+		if err := s.buildColumn(exp); err != nil {
+			return err
 		}
-		s.sb.WriteByte('`')
-		s.sb.WriteString(fd.ColName)
-		s.sb.WriteByte('`')
 	case value: // 代表参数, 加入参数列表
 		s.sb.WriteString("?")
 		s.addArg(exp.val)
@@ -178,6 +201,17 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 	default:
 		return errs.NewErrUnsupportedExpressionType(expr)
 	}
+	return nil
+}
+
+func (s *Selector[T]) buildColumn(c Column) error {
+	fd, ok := s.model.FieldMap[c.name]
+	if !ok {
+		return errs.NewErrUnknownField(c.name)
+	}
+	s.sb.WriteByte('`')
+	s.sb.WriteString(fd.ColName)
+	s.sb.WriteByte('`')
 	return nil
 }
 
