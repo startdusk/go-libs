@@ -184,9 +184,8 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 			s.sb.WriteByte(')')
 		}
 	case Column: // 代表列名, 直接拼接列名
-		if err := s.buildColumn(exp.name); err != nil {
-			return err
-		}
+		exp.alias = "" // where 部分不允许使用 AS(但这行代码写得很隐晦, 另一种写法就是标志位的写法, 也不是很好)
+		return s.buildColumn(exp)
 	case RawExpr:
 		s.sb.WriteByte('(')
 		s.sb.WriteString(exp.raw)
@@ -216,7 +215,7 @@ func (s *Selector[T]) buildSelectColumns() error {
 		}
 		switch c := col.(type) {
 		case Column:
-			if err := s.buildColumn(c.name); err != nil {
+			if err := s.buildColumn(c); err != nil {
 				return err
 			}
 		case Aggregate:
@@ -224,10 +223,17 @@ func (s *Selector[T]) buildSelectColumns() error {
 			s.sb.WriteString(c.fn)
 			s.sb.WriteByte('(')
 			// 聚合字段名
-			if err := s.buildColumn(c.arg); err != nil {
+			if err := s.buildColumn(Column{name: c.arg}); err != nil {
 				return err
 			}
 			s.sb.WriteByte(')')
+			// 聚合函数使用别名
+			if c.alias != "" {
+				s.sb.WriteString(" AS ")
+				s.sb.WriteByte('`')
+				s.sb.WriteString(c.alias)
+				s.sb.WriteByte('`')
+			}
 		case RawExpr:
 			// 用户输入SQL
 			s.sb.WriteString(c.raw)
@@ -239,14 +245,22 @@ func (s *Selector[T]) buildSelectColumns() error {
 	return nil
 }
 
-func (s *Selector[T]) buildColumn(colName string) error {
-	fd, ok := s.model.FieldMap[colName]
+func (s *Selector[T]) buildColumn(col Column) error {
+	fd, ok := s.model.FieldMap[col.name]
 	if !ok {
-		return errs.NewErrUnknownField(colName)
+		return errs.NewErrUnknownField(col.name)
 	}
+
 	s.sb.WriteByte('`')
 	s.sb.WriteString(fd.ColName)
 	s.sb.WriteByte('`')
+	// 字段使用别名
+	if col.alias != "" {
+		s.sb.WriteString(" AS ")
+		s.sb.WriteByte('`')
+		s.sb.WriteString(col.alias)
+		s.sb.WriteByte('`')
+	}
 	return nil
 }
 

@@ -5,7 +5,16 @@ func (c Column) selectable() {}
 func (c Column) expr() {}
 
 type Column struct {
-	name string
+	name  string
+	alias string
+}
+
+// As 给字段设置别名
+func (c Column) As(alias string) Column {
+	return Column{
+		name:  c.name,
+		alias: alias,
+	}
 }
 
 func (c Column) Gt(arg any) Predicate {

@@ -91,19 +91,17 @@ func Test_Selector_Select(t *testing.T) {
 			},
 		},
 		{
-			name: "raw expression as predicate",
-			q:    NewSelector[TestModel](db).Where(Raw("`age`<?", 18).AsPredicate()),
+			name: "columns alias",
+			q:    NewSelector[TestModel](db).Select(C("FirstName").As("my_name")),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `test_model` WHERE (`age`<?);",
-				Args: []any{18},
+				SQL: "SELECT `first_name` AS `my_name` FROM `test_model`;",
 			},
 		},
 		{
-			name: "raw expression used in predicate",
-			q:    NewSelector[TestModel](db).Where(C("ID").Eq(Raw("`age`+?", 1))),
+			name: "aggregate alias",
+			q:    NewSelector[TestModel](db).Select(Max("Age").As("my_age")),
 			wantQuery: &Query{
-				SQL:  "SELECT * FROM `test_model` WHERE `id` = (`age`+?);",
-				Args: []any{1},
+				SQL: "SELECT MAX(`age`) AS `my_age` FROM `test_model`;",
 			},
 		},
 	}
@@ -219,6 +217,30 @@ func Test_Selector_Build(t *testing.T) {
 			builder: NewSelector[TestModel](db).Where(C(`Age`).Eq(18).Or(C("XXX").Eq("tom"))),
 
 			wantErr: errs.NewErrUnknownField("XXX"),
+		},
+		{
+			name:    "raw expression as predicate",
+			builder: NewSelector[TestModel](db).Where(Raw("`age`<?", 18).AsPredicate()),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE (`age`<?);",
+				Args: []any{18},
+			},
+		},
+		{
+			name:    "raw expression used in predicate",
+			builder: NewSelector[TestModel](db).Where(C("ID").Eq(Raw("`age`+?", 1))),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id` = (`age`+?);",
+				Args: []any{1},
+			},
+		},
+		{
+			name:    "column alias in where", // where 部分的字段是不允许使用 AS
+			builder: NewSelector[TestModel](db).Where(C("ID").As("my_id").Eq(18)),
+			wantQuery: &Query{
+				SQL:  "SELECT * FROM `test_model` WHERE `id` = ?;",
+				Args: []any{18},
+			},
 		},
 	}
 

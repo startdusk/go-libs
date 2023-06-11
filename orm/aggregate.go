@@ -5,6 +5,16 @@ package orm
 type Aggregate struct {
 	fn  string
 	arg string
+	// 设置别名
+	alias string
+}
+
+func (a Aggregate) As(alias string) Aggregate {
+	return Aggregate{
+		fn:    a.fn,
+		arg:   a.arg,
+		alias: alias,
+	}
 }
 
 func (a Aggregate) selectable() {}
