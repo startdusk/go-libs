@@ -140,14 +140,36 @@ func (h *HTTPServer) Options(path string, handleFunc HandleFunc) {
 }
 
 // 可路由的 Middleware
-// 允许用户在特定路由上注册Middleware
-// Middleware选取所有能够匹配上的路由的Middleware作为结果
-// Use("GET", "/a/b", ms) 当输入路径/a/b的时候, 会调对应的ms
+// 功能需求: 允许用户在特定路由上注册Middleware, Middleware选取所有能够匹配上的路由的Middleware作为结果
+// 支持原则: 能匹配则匹配, 越具体的匹配越往后调度
 //
-//	当输入路径/a/b/c的时候, 会调对应的ms
+// 支持以下场景
+// 1.Use("GET", "/a/b", ms) 当输入路径/a/b的时候, 会调对应的ms, 输入路径/a/b/c, 也会调用对应的ms
+//
+// 2.Use("GET", "/a/*", ms1) 当输入路径/a/b的时候, 会调对应的ms
+//
+//	Use("GET", "/a/b/*", ms2) 当输入路径/a/b/c的时候, 会调对应的ms1和ms2
+//
+// 3.Use("GET", "/a/*/c", ms1) 当输入路径/a/d/c的时候, 会调对应的ms1
+//
+//	Use("GET", "/a/b/c", ms2) 当输入路径/a/b/c的时候, 会调对应的ms1和ms2
+//
+// 4.Use("GET", "/a/:id", ms1) 当输入路径/a/123的时候, 会调对应的ms1
+//
+//	Use("GET", "/a/123/c", ms1) 当输入路径/a/123/c的时候, 会调对应的ms1和ms2
+//
+// 不支持的场景
+// 1.Use("GET", "/a/*/c", ms1) 当输入路径/a/b/c的时候, 不会调对应的ms1
+//
+//	Use("GET", "/a/b/c", ms2) 当输入路径/a/b/c的时候, 会调对应ms2
+//
+// 如果用户同时注册了Middleware
+// 1.Use("GET", "/a/b", ms1)
+// 2.Use("GET", "/a/*", ms2)
+// 3.Use("GET", "/a", ms3)
+// 那么调用顺序为 ms3, ms2, ms1
 func (h *HTTPServer) Use(method string, path string, ms ...Middleware) {
-	// s.addRoute(method, path, nil, ms...) // 依托于原有的路由树来完成这个功能
-
+	h.addRoute(method, path, nil, ms...) // 依托于原有的路由树来完成这个功能
 }
 
 func (h *HTTPServer) serve(ctx *Context) {

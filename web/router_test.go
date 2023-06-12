@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -579,6 +580,87 @@ func TestRouter_findRoute(t *testing.T) {
 			msg, ok := c.wantMatchInfo.n.equal(matchInfo.n)
 			assert.True(t, ok, msg)
 		})
+	}
+}
+
+func Test_findMiddlewares(t *testing.T) {
+	routes := []struct {
+		method string
+		path   string
+		mdls   []Middleware
+	}{
+		{
+			method: http.MethodGet,
+			path:   "/a",
+			mdls:   []Middleware{middlewareA},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/a/b",
+			mdls:   []Middleware{middlewareB, middlewareC},
+		},
+	}
+
+	var mockHandler HandleFunc = func(ctx *Context) {}
+	r := newRouter()
+	for _, route := range routes {
+		r.addRoute(route.method, route.path, mockHandler, route.mdls...)
+	}
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		mdls   []Middleware
+	}{
+		{
+			name:   "/a 一个中间件",
+			method: http.MethodGet,
+			path:   "/a",
+			mdls:   []Middleware{middlewareA},
+		},
+		{
+			name:   "/a/b 三个中间件",
+			method: http.MethodGet,
+			path:   "/a/b",
+			mdls:   []Middleware{middlewareA, middlewareB, middlewareC},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			root, ok := r.trees[c.method]
+			assert.Equal(t, true, ok)
+			segs := strings.Split(c.path, "/")
+			mdls := r.findMiddlewares(root, segs)
+			// 比较中间件数量
+			assert.Equal(t, len(c.mdls), len(mdls))
+
+			// 比较中间件函数
+			for i := 0; i < len(c.mdls); i++ {
+				mdlA := reflect.ValueOf(c.mdls[i])
+				mdlB := reflect.ValueOf(mdls[i])
+				assert.Equal(t, mdlA, mdlB)
+			}
+		})
+	}
+}
+
+func middlewareA(next HandleFunc) HandleFunc {
+	return func(ctx *Context) {
+		next(ctx)
+	}
+}
+
+func middlewareB(next HandleFunc) HandleFunc {
+	return func(ctx *Context) {
+		next(ctx)
+	}
+}
+
+func middlewareC(next HandleFunc) HandleFunc {
+	return func(ctx *Context) {
+		next(ctx)
 	}
 }
 

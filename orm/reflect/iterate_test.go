@@ -62,8 +62,8 @@ func Test_IterateMap(t *testing.T) {
 			if err != nil {
 				return
 			}
-			assert.Equal(t, c.wantKeys, keys)
-			assert.Equal(t, c.wantValues, values)
+			assert.ElementsMatch(t, c.wantKeys, keys)
+			assert.ElementsMatch(t, c.wantValues, values)
 		})
 	}
 }
