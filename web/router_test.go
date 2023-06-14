@@ -599,6 +599,34 @@ func Test_findMiddlewares(t *testing.T) {
 			path:   "/a/b",
 			mdls:   []Middleware{middlewareB, middlewareC},
 		},
+		{
+			method: http.MethodGet,
+			path:   "/a/b/c",
+		},
+
+		// * 通配符匹配
+		{
+			method: http.MethodGet,
+			path:   "/d/*",
+			mdls:   []Middleware{middlewareA},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/d/*/e",
+			mdls:   []Middleware{middlewareB},
+		},
+
+		// :id
+		{
+			method: http.MethodGet,
+			path:   "/f/:id",
+			mdls:   []Middleware{middlewareA},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/f/123/g",
+			mdls:   []Middleware{middlewareB},
+		},
 	}
 
 	var mockHandler HandleFunc = func(ctx *Context) {}
@@ -625,12 +653,47 @@ func Test_findMiddlewares(t *testing.T) {
 			path:   "/a/b",
 			mdls:   []Middleware{middlewareA, middlewareB, middlewareC},
 		},
+		{
+			name:   "/a/b/c 三个中间件",
+			method: http.MethodGet,
+			path:   "/a/b/c",
+			mdls:   []Middleware{middlewareA, middlewareB, middlewareC},
+		},
+
+		// * 通配符匹配
+		{
+			name:   "/d/d 一个中间件",
+			method: http.MethodGet,
+			path:   "/d/d",
+			mdls:   []Middleware{middlewareA},
+		},
+		{
+			name:   "/d/d/e 两个中间件",
+			method: http.MethodGet,
+			path:   "/d/d/e",
+			mdls:   []Middleware{middlewareA, middlewareB},
+		},
+
+		// :id
+		{
+			name:   "/f/122 一个中间件",
+			method: http.MethodGet,
+			path:   "/f/122",
+			mdls:   []Middleware{middlewareA},
+		},
+		{
+			name:   "/f/123/g 两个中间件",
+			method: http.MethodGet,
+			path:   "/f/123/g",
+			mdls:   []Middleware{middlewareA, middlewareB},
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			root, ok := r.trees[c.method]
 			assert.Equal(t, true, ok)
+			c.path = strings.Trim(c.path, "/")
 			segs := strings.Split(c.path, "/")
 			mdls := r.findMiddlewares(root, segs)
 			// 比较中间件数量

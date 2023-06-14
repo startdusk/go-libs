@@ -115,17 +115,26 @@ func (r *router) findRoute(method string, path string) (*matchInfo, bool) {
 
 // 查找路由树上的中间件
 func (r *router) findMiddlewares(root *node, segs []string) []Middleware {
-	// TODO:
 	// 层次遍历(广度优先)路由树, 找到middleware(目前每次查找路由都得计算一遍)
-	var mdls []Middleware
-	cur := root
-	for _, seg := range segs {
-		child, found := cur.childOf(seg)
-		if found {
-			if len(child.mdls) > 0 {
-				mdls = append(mdls, child.mdls...)
+	queue := []*node{root}
+	mdls := make([]Middleware, 0, 16)
+	for i := 0; i < len(segs); i++ {
+		seg := segs[i]
+		// 保存每一段会命中的子节点
+		var children []*node
+		for _, cur := range queue {
+			if len(cur.mdls) > 0 {
+				mdls = append(mdls, cur.mdls...)
 			}
-			cur = child
+			children = append(children, cur.childrenOf(seg)...)
+		}
+		queue = children
+	}
+
+	// 收尾
+	for _, cur := range queue {
+		if len(cur.mdls) > 0 {
+			mdls = append(mdls, cur.mdls...)
 		}
 	}
 

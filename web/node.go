@@ -203,3 +203,27 @@ func (n *node) childOfNonStatic(seg string) (*node, bool) {
 
 	return n.starChild, n.starChild != nil
 }
+
+// childrenOf 返回该层的所有子节点
+func (n *node) childrenOf(seg string) []*node {
+	var nodes []*node
+	if n.children != nil {
+		if child, ok := n.children[seg]; ok {
+			nodes = append(nodes, child)
+		}
+	}
+
+	if n.regChild != nil {
+		nodes = append(nodes, n.regChild)
+	}
+
+	if n.paramChild != nil {
+		nodes = append(nodes, n.paramChild)
+	}
+
+	if n.starChild != nil {
+		nodes = append(nodes, n.starChild)
+	}
+
+	return nodes
+}

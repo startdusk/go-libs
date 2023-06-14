@@ -156,7 +156,7 @@ func (h *HTTPServer) Options(path string, handleFunc HandleFunc) {
 //
 // 4.Use("GET", "/a/:id", ms1) 当输入路径/a/123的时候, 会调对应的ms1
 //
-//	Use("GET", "/a/123/c", ms1) 当输入路径/a/123/c的时候, 会调对应的ms1和ms2
+//	Use("GET", "/a/123/c", ms2) 当输入路径/a/123/c的时候, 会调对应的ms1和ms2
 //
 // 不支持的场景
 // 1.Use("GET", "/a/*/c", ms1) 当输入路径/a/b/c的时候, 不会调对应的ms1
@@ -167,7 +167,7 @@ func (h *HTTPServer) Options(path string, handleFunc HandleFunc) {
 // 1.Use("GET", "/a/b", ms1)
 // 2.Use("GET", "/a/*", ms2)
 // 3.Use("GET", "/a", ms3)
-// 那么调用顺序为 ms3, ms2, ms1
+// 那么调用 /a/b 中间件调用的顺序为 ms3, ms2, ms1
 func (h *HTTPServer) Use(method string, path string, ms ...Middleware) {
 	h.addRoute(method, path, nil, ms...) // 依托于原有的路由树来完成这个功能
 }
