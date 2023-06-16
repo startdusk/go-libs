@@ -12,7 +12,7 @@ import (
 )
 
 func TestDB(t *testing.T) {
-	db, err := sql.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
+	db, err := sql.Open("sqlite3", "file:test_crud.db?cache=shared&mode=memory")
 	require.NoError(t, err)
 
 	db.Ping()
