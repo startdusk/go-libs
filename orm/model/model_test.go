@@ -119,14 +119,21 @@ func Test_Register(t *testing.T) {
 			if err != nil {
 				return
 			}
-			fieldMap := make(map[string]*Field)
-			columnMap := make(map[string]*Field)
-			for _, field := range c.fields {
+
+			numField := len(c.fields)
+			fieldMap := make(map[string]*Field, numField)
+			columnMap := make(map[string]*Field, numField)
+			fields := make([]*Field, numField)
+			for i, field := range c.fields {
 				fieldMap[field.GoName] = field
 				columnMap[field.ColName] = field
+				fields[i] = field
 			}
 			c.wantModel.FieldMap = fieldMap
 			c.wantModel.ColumnMap = columnMap
+			if len(fields) > 0 {
+				c.wantModel.Fields = fields
+			}
 			assert.Equal(t, c.wantModel, m)
 		})
 	}
@@ -304,14 +311,20 @@ func Test_RegistryGet(t *testing.T) {
 				return
 			}
 
-			fieldMap := make(map[string]*Field)
-			columnMap := make(map[string]*Field)
-			for _, field := range c.fields {
+			numField := len(c.fields)
+			fieldMap := make(map[string]*Field, numField)
+			columnMap := make(map[string]*Field, numField)
+			fields := make([]*Field, numField)
+			for i, field := range c.fields {
 				fieldMap[field.GoName] = field
 				columnMap[field.ColName] = field
+				fields[i] = field
 			}
 			c.wantModel.FieldMap = fieldMap
 			c.wantModel.ColumnMap = columnMap
+			if len(fields) > 0 {
+				c.wantModel.Fields = fields
+			}
 
 			assert.Equal(t, c.wantModel, m)
 			typ := reflect.TypeOf(c.entity)

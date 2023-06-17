@@ -54,6 +54,9 @@ type Model struct {
 	FieldMap map[string]*Field
 	// 数据库列名到字段定义的映射
 	ColumnMap map[string]*Field
+
+	// 记录 field 的顺序(map是无序的)
+	Fields []*Field
 }
 
 type Field struct {
@@ -138,6 +141,7 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 	}
 	elemTyp := typ.Elem()
 	numField := elemTyp.NumField()
+	fields := make([]*Field, numField)
 	fieldMap := make(map[string]*Field, numField)
 	columnMap := make(map[string]*Field, numField)
 	for i := 0; i < numField; i++ {
@@ -162,6 +166,7 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 
 		fieldMap[fd.Name] = field
 		columnMap[colName] = field
+		fields[i] = field
 	}
 
 	var tableName string
@@ -176,6 +181,7 @@ func (r *registry) Register(entity any, opts ...ModelOption) (*Model, error) {
 		TableName: tableName,
 		FieldMap:  fieldMap,
 		ColumnMap: columnMap,
+		Fields:    fields,
 	}
 	for _, opt := range opts {
 		if err := opt(m); err != nil {
