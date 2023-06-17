@@ -44,13 +44,19 @@ func ModelWithColumnName(field string, colName string) ModelOption {
 		fd.ColName = colName
 		m.ColumnMap[fd.ColName] = fd
 
+		for i := range m.Fields {
+			if m.Fields[i].ColName == colName {
+				m.Fields[i] = fd
+			}
+		}
+
 		return nil
 	}
 }
 
 type Model struct {
 	TableName string
-	// 字段名到字段定义的映射
+	// 字段名(Golang结构体的字段名)到字段定义的映射
 	FieldMap map[string]*Field
 	// 数据库列名到字段定义的映射
 	ColumnMap map[string]*Field
@@ -60,7 +66,7 @@ type Model struct {
 }
 
 type Field struct {
-	// 字段名
+	// 字段名(Golang结构体的字段名)
 	GoName string
 
 	// 列名

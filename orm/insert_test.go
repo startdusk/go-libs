@@ -25,6 +25,48 @@ func TestInserter_Build(t *testing.T) {
 			wantErr: errs.ErrInsertZeroRows,
 		},
 		{
+			name: "insert row with unknown field",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				ID:        1,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}).Columns("unknown"),
+			wantErr: errs.NewErrUnknownField("unknown"),
+		},
+		{
+			name: "insert single columns row",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				ID:        1,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}).Columns("ID", "FirstName"),
+			wantQuery: &Query{
+				SQL:  "INSERT INTO `test_model`(`id`,`first_name`) VALUES (?,?);",
+				Args: []any{int64(1), "Tom"},
+			},
+		},
+		{
+			name: "insert multiple columns row",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				ID:        1,
+				FirstName: "Tom",
+			},
+				&TestModel{
+					ID:        2,
+					FirstName: "Tom1",
+				},
+			).Columns("ID", "FirstName"),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model`(`id`,`first_name`) VALUES (?,?),(?,?);",
+				Args: []any{
+					int64(1), "Tom",
+					int64(2), "Tom1",
+				},
+			},
+		},
+		{
 			name: "only insert single row",
 			i: NewInserter[TestModel](db).Values(&TestModel{
 				ID:        1,
