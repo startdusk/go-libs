@@ -3,8 +3,6 @@ package orm
 import (
 	"context"
 	"github.com/startdusk/go-libs/orm/internal/errs"
-	"github.com/startdusk/go-libs/orm/model"
-	"strings"
 )
 
 // Selectable select 指定列
@@ -15,11 +13,10 @@ type Selectable interface {
 }
 
 type Selector[T any] struct {
+	builder
 	tableName string
 	where     []Predicate
-	sb        strings.Builder
-	args      []any
-	model     *model.Model
+
 	// 指定 select 的列
 	columns []Selectable
 
@@ -28,6 +25,10 @@ type Selector[T any] struct {
 
 func NewSelector[T any](db *DB) *Selector[T] {
 	return &Selector[T]{
+		builder: builder{
+			dialect: db.dialect,
+			quoter:  db.dialect.quoter(),
+		},
 		db: db,
 	}
 }
@@ -63,9 +64,7 @@ func (s *Selector[T]) Build() (*Query, error) {
 	if s.tableName == "" {
 
 		// 这里给表名加 ``
-		s.sb.WriteByte('`')
-		s.sb.WriteString(s.model.TableName)
-		s.sb.WriteByte('`')
+		s.quote(s.model.TableName)
 	} else {
 		// 这里是用户传进来的表名, 用户应该保证它的正确性
 		// 如 `tableName`
@@ -189,11 +188,11 @@ func (s *Selector[T]) buildExpression(expr Expression) error {
 	case RawExpr:
 		s.sb.WriteByte('(')
 		s.sb.WriteString(exp.raw)
-		s.addArg(exp.args...)
+		s.addArgs(exp.args...)
 		s.sb.WriteByte(')')
 	case value: // 代表参数, 加入参数列表
 		s.sb.WriteString("?")
-		s.addArg(exp.val)
+		s.addArgs(exp.val)
 	case nil:
 		return nil
 	default:
@@ -230,14 +229,12 @@ func (s *Selector[T]) buildSelectColumns() error {
 			// 聚合函数使用别名
 			if c.alias != "" {
 				s.sb.WriteString(" AS ")
-				s.sb.WriteByte('`')
-				s.sb.WriteString(c.alias)
-				s.sb.WriteByte('`')
+				s.quote(c.alias)
 			}
 		case RawExpr:
 			// 用户输入SQL
 			s.sb.WriteString(c.raw)
-			s.addArg(c.args...)
+			s.addArgs(c.args...)
 		default:
 			return errs.NewErrUnsupportedExpressionType(col)
 		}
@@ -251,26 +248,11 @@ func (s *Selector[T]) buildColumn(col Column) error {
 		return errs.NewErrUnknownField(col.name)
 	}
 
-	s.sb.WriteByte('`')
-	s.sb.WriteString(fd.ColName)
-	s.sb.WriteByte('`')
+	s.quote(fd.ColName)
 	// 字段使用别名
 	if col.alias != "" {
 		s.sb.WriteString(" AS ")
-		s.sb.WriteByte('`')
-		s.sb.WriteString(col.alias)
-		s.sb.WriteByte('`')
+		s.quote(col.alias)
 	}
 	return nil
-}
-
-func (s *Selector[T]) addArg(vals ...any) {
-	if len(vals) == 0 {
-		return
-	}
-
-	if s.args == nil {
-		s.args = make([]any, 0, 8)
-	}
-	s.args = append(s.args, vals...)
 }

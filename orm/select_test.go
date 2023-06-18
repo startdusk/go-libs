@@ -16,8 +16,7 @@ import (
 )
 
 func Test_Selector_Select(t *testing.T) {
-	db, err := OpenDB(memoryDB(t))
-	assert.NoError(t, err)
+	db := memoryDB(t)
 	cases := []struct {
 		name      string
 		q         QueryBuilder
@@ -119,8 +118,7 @@ func Test_Selector_Select(t *testing.T) {
 }
 
 func Test_Selector_Build(t *testing.T) {
-	db, err := OpenDB(memoryDB(t))
-	assert.NoError(t, err)
+	db := memoryDB(t)
 	cases := []struct {
 		name    string
 		builder QueryBuilder
@@ -262,7 +260,7 @@ func Test_Selector_GetMulit(t *testing.T) {}
 func Test_Selector_Get(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	assert.NoError(t, err)
-	db, err := OpenDB(mockDB)
+	db, err := OpenDB(mockDB, DBWithDialect(DialectMySQL))
 	assert.NoError(t, err)
 
 	// 对应 query error
@@ -353,8 +351,8 @@ func (t TestModel) CreateSQL() string {
 	`
 }
 
-func memoryDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("sqlite3", "file:test.db?cache=shared&mode=memory")
+func memoryDB(t *testing.T) *DB {
+	db, err := Open("sqlite3", "file:test.db?cache=shared&mode=memory", DBWithDialect(DialectMySQL))
 	require.NoError(t, err)
 	return db
 }

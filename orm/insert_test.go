@@ -10,9 +10,7 @@ import (
 )
 
 func TestInserter_Build(t *testing.T) {
-	db, err := OpenDB(memoryDB(t))
-	assert.NoError(t, err)
-
+	db := memoryDB(t)
 	cases := []struct {
 		name      string
 		i         QueryBuilder
