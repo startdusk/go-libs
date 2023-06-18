@@ -35,6 +35,22 @@ func TestInserter_Build(t *testing.T) {
 			wantErr: errs.NewErrUnknownField("unknown"),
 		},
 		{
+			name: "upsert",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				ID:        1,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}).OnDuplicateKey().Update(Assign("FirstName", "Ben"), Assign("Age", 17)),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE `first_name`=?,`age`=?;",
+				Args: []any{
+					int64(1), "Tom", int8(18), &sql.NullString{String: "Jerry", Valid: true},
+					"Ben", 17,
+				},
+			},
+		},
+		{
 			name: "insert single columns row",
 			i: NewInserter[TestModel](db).Values(&TestModel{
 				ID:        1,
@@ -96,6 +112,29 @@ func TestInserter_Build(t *testing.T) {
 			),
 			wantQuery: &Query{
 				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?),(?,?,?,?);",
+				Args: []any{
+					int64(1), "Tom", int8(18), &sql.NullString{String: "Jerry", Valid: true},
+					int64(2), "Tom1", int8(19), &sql.NullString{String: "Jerry1", Valid: true},
+				},
+			},
+		},
+		{
+			name: "upsert-update multiple row",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				ID:        1,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			},
+				&TestModel{
+					ID:        2,
+					FirstName: "Tom1",
+					Age:       19,
+					LastName:  &sql.NullString{String: "Jerry1", Valid: true},
+				},
+			).OnDuplicateKey().Update(C("FirstName"), C("Age")),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?),(?,?,?,?) ON DUPLICATE KEY UPDATE `first_name`=VALUES(`first_name`),`age`=VALUES(`age`);",
 				Args: []any{
 					int64(1), "Tom", int8(18), &sql.NullString{String: "Jerry", Valid: true},
 					int64(2), "Tom1", int8(19), &sql.NullString{String: "Jerry1", Valid: true},

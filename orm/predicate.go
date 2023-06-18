@@ -21,8 +21,13 @@ type Predicate struct {
 	right Expression
 }
 
+var _ Selectable = new(Predicate)
+
 func (p Predicate) selectable() {}
-func (p Predicate) expr()       {}
+
+var _ Expression = new(Predicate)
+
+func (p Predicate) expr() {}
 
 func C(name string) Column {
 	return Column{name: name}
@@ -56,5 +61,7 @@ func (left Predicate) Or(right Predicate) Predicate {
 type value struct {
 	val any
 }
+
+var _ Expression = new(value)
 
 func (v value) expr() {}

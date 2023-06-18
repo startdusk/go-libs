@@ -7,6 +7,22 @@ import (
 	"github.com/startdusk/go-libs/orm/internal/errs"
 )
 
+type OnDuplicateKeyBuilder[T any] struct {
+	i *Inserter[T]
+}
+
+type OnDuplicateKey struct {
+	assigns []Assignable
+}
+
+func (o *OnDuplicateKeyBuilder[T]) Update(assigns ...Assignable) *Inserter[T] {
+	o.i.onDuplicateKey = &OnDuplicateKey{
+		assigns: assigns,
+	}
+
+	return o.i
+}
+
 type Inserter[T any] struct {
 	// INSERT 语句要插入的值的结构体的列表
 	values []*T
@@ -14,11 +30,19 @@ type Inserter[T any] struct {
 	// INSERT 语句要插入的指定的列
 	columns []string
 	db      *DB
+
+	onDuplicateKey *OnDuplicateKey
 }
 
 func NewInserter[T any](db *DB) *Inserter[T] {
 	return &Inserter[T]{
 		db: db,
+	}
+}
+
+func (i *Inserter[T]) OnDuplicateKey() *OnDuplicateKeyBuilder[T] {
+	return &OnDuplicateKeyBuilder[T]{
+		i: i,
 	}
 }
 
@@ -94,6 +118,43 @@ func (i *Inserter[T]) Build() (*Query, error) {
 		}
 		sb.WriteByte(')')
 	}
+
+	if i.onDuplicateKey != nil {
+		sb.WriteString(" ON DUPLICATE KEY UPDATE ")
+		for idx, assign := range i.onDuplicateKey.assigns {
+			if idx > 0 {
+				sb.WriteByte(',')
+			}
+			switch a := assign.(type) {
+			case Assignment:
+				fd, ok := m.FieldMap[a.col]
+				if !ok {
+					return nil, errs.NewErrUnknownField(a.col)
+				}
+				sb.WriteByte('`')
+				sb.WriteString(fd.ColName)
+				sb.WriteByte('`')
+				sb.WriteString("=?")
+				args = append(args, a.val)
+			case Column:
+				fd, ok := m.FieldMap[a.name]
+				if !ok {
+					return nil, errs.NewErrUnknownField(a.name)
+				}
+				sb.WriteByte('`')
+				sb.WriteString(fd.ColName)
+				sb.WriteByte('`')
+				sb.WriteString("=VALUES(")
+				sb.WriteByte('`')
+				sb.WriteString(fd.ColName)
+				sb.WriteByte('`')
+				sb.WriteByte(')')
+			default:
+				return nil, errs.NewErrUnsupportedAssignable(assign)
+			}
+		}
+	}
+
 	sb.WriteByte(';')
 
 	return &Query{

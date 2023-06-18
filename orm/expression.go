@@ -25,5 +25,10 @@ func (r RawExpr) AsPredicate() Predicate {
 	}
 }
 
+var _ Selectable = new(RawExpr)
+
 func (r RawExpr) selectable() {}
-func (r RawExpr) expr()       {}
+
+var _ Expression = new(RawExpr)
+
+func (r RawExpr) expr() {}

@@ -49,3 +49,7 @@ func valueOf(arg any) Expression {
 		return value{val: val}
 	}
 }
+
+var _ Assignable = new(Column)
+
+func (c Column) assign() {}
