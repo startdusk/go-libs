@@ -1,3 +1,7 @@
+.PHONY: codeline
+codeline:
+	@tokei .
+	
 .PHONY: test
 test: clean
 	@go test ./... -v
@@ -14,3 +18,4 @@ clean:
 e2e:
 	@go clean -testcache
 	@go test ./... --tags=e2e -v
+

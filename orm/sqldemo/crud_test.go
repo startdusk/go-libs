@@ -19,7 +19,7 @@ func TestDB(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if _, err := db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS test_model(
+		CREATE TABLE IF NOT EXISTS test1_model(
 			id INTEGER PRIMARY KEY,
 			first_name TEXT NOT NULL,
 			age INTEGER,
@@ -28,7 +28,7 @@ func TestDB(t *testing.T) {
 	`); err != nil {
 		require.NoError(t, err)
 	}
-	if _, err := db.ExecContext(ctx, "INSERT INTO test_model(`id`, `first_name`, `age`, `last_name`) VALUES(?, ?, ?, ?)",
+	if _, err := db.ExecContext(ctx, "INSERT INTO test1_model(`id`, `first_name`, `age`, `last_name`) VALUES(?, ?, ?, ?)",
 		1,
 		"tom",
 		18,
