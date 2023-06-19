@@ -1,11 +1,15 @@
 package orm
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"github.com/startdusk/go-libs/orm/internal/errs"
 	"github.com/stretchr/testify/assert"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -204,6 +208,57 @@ func TestInserter_Build(t *testing.T) {
 			}
 
 			assert.Equal(t, c.wantQuery, q)
+		})
+	}
+}
+
+func TestInserter_Exec(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	db, err := OpenDB(mockDB, DBWithDialect(DialectMySQL))
+	assert.NoError(t, err)
+
+	cases := []struct {
+		name     string
+		i        *Inserter[TestModel]
+		wantErr  error
+		affected int64
+	}{
+		{
+			name: "db error",
+			i: func() *Inserter[TestModel] {
+				mock.ExpectExec("INSERT INTO .*").WillReturnError(errors.New("db error"))
+				return NewInserter[TestModel](db).Values(&TestModel{})
+			}(),
+			wantErr: errors.New("db error"),
+		},
+		{
+			name: "query error",
+			i: func() *Inserter[TestModel] {
+				return NewInserter[TestModel](db).Values(&TestModel{}).Columns("Invalid")
+			}(),
+			wantErr: errs.NewErrUnknownField("Invalid"),
+		},
+		{
+			name: "exec",
+			i: func() *Inserter[TestModel] {
+				res := driver.RowsAffected(1)
+				mock.ExpectExec("INSERT INTO .*").WillReturnResult(res)
+				return NewInserter[TestModel](db).Values(&TestModel{})
+			}(),
+			affected: 1,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res := c.i.Exec(context.Background())
+			affected, err := res.RowsAffected()
+			assert.Equal(t, c.wantErr, err)
+			if c.wantErr != nil {
+				return
+			}
+			assert.Equal(t, c.affected, affected)
 		})
 	}
 }

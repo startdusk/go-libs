@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/startdusk/go-libs/orm/internal/errs"
@@ -142,4 +143,17 @@ func (i *Inserter[T]) Build() (*Query, error) {
 		SQL:  i.sb.String(),
 		Args: i.args,
 	}, nil
+}
+
+func (i *Inserter[T]) Exec(ctx context.Context) Result {
+	var result Result
+	q, err := i.Build()
+	if err != nil {
+		result.err = err
+		return result
+	}
+	res, err := i.db.db.Exec(q.SQL, q.Args...)
+	result.res = res
+	result.err = err
+	return result
 }

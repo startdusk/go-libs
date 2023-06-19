@@ -10,6 +10,10 @@ var (
 	DialectSQLite      Dialect = &sqliteDialect{}
 )
 
+// Dialect 抽象的局限性
+// Dialect本身机器容易膨胀, 每一个SQL的方言不同就会导致需要添加方法
+// 一些方言的特性是独有的, 加入到Dialect里面就不太合适, 例如对JSON的支持, 只有PostgreSQL支持
+// Dialect抽象无法挪到interal包里面(循环引用)
 type Dialect interface {
 	// quoter 就是为了解决引号问题
 	// MySQL 反引号 `
