@@ -9,6 +9,60 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func TestInserter_SQLite_Upsert(t *testing.T) {
+	db := memoryDB(t, DBWithDialect(DialectSQLite))
+	cases := []struct {
+		name      string
+		i         QueryBuilder
+		wantErr   error
+		wantQuery *Query
+	}{
+		{
+			name: "upsert",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				ID:        1,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}).Upsert().ConflictColumns("ID").Update(Assign("FirstName", "Ben"), Assign("Age", 17)),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?) ON CONFLICT(`id`) DO UPDATE SET `first_name`=?,`age`=?;",
+				Args: []any{
+					int64(1), "Tom", int8(18), &sql.NullString{String: "Jerry", Valid: true},
+					"Ben", 17,
+				},
+			},
+		},
+		{
+			name: "upsert use insert value",
+			i: NewInserter[TestModel](db).Values(&TestModel{
+				ID:        1,
+				FirstName: "Tom",
+				Age:       18,
+				LastName:  &sql.NullString{String: "Jerry", Valid: true},
+			}).Upsert().ConflictColumns("ID").Update(C("FirstName"), C("Age")),
+			wantQuery: &Query{
+				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?) ON CONFLICT(`id`) DO UPDATE SET `first_name`=excluded.`first_name`,`age`=excluded.`age`;",
+				Args: []any{
+					int64(1), "Tom", int8(18), &sql.NullString{String: "Jerry", Valid: true},
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			q, err := c.i.Build()
+			assert.Equal(t, c.wantErr, err)
+			if err != nil {
+				return
+			}
+
+			assert.Equal(t, c.wantQuery, q)
+		})
+	}
+}
+
 func TestInserter_Build(t *testing.T) {
 	db := memoryDB(t)
 	cases := []struct {
@@ -39,7 +93,7 @@ func TestInserter_Build(t *testing.T) {
 				FirstName: "Tom",
 				Age:       18,
 				LastName:  &sql.NullString{String: "Jerry", Valid: true},
-			}).OnDuplicateKey().Update(Assign("FirstName", "Ben"), Assign("Age", 17)),
+			}).Upsert().Update(Assign("FirstName", "Ben"), Assign("Age", 17)),
 			wantQuery: &Query{
 				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE `first_name`=?,`age`=?;",
 				Args: []any{
@@ -130,7 +184,7 @@ func TestInserter_Build(t *testing.T) {
 					Age:       19,
 					LastName:  &sql.NullString{String: "Jerry1", Valid: true},
 				},
-			).OnDuplicateKey().Update(C("FirstName"), C("Age")),
+			).Upsert().Update(C("FirstName"), C("Age")),
 			wantQuery: &Query{
 				SQL: "INSERT INTO `test_model`(`id`,`first_name`,`age`,`last_name`) VALUES (?,?,?,?),(?,?,?,?) ON DUPLICATE KEY UPDATE `first_name`=VALUES(`first_name`),`age`=VALUES(`age`);",
 				Args: []any{

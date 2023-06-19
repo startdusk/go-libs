@@ -6,17 +6,25 @@ import (
 	"github.com/startdusk/go-libs/orm/internal/errs"
 )
 
-type OnDuplicateKeyBuilder[T any] struct {
-	i *Inserter[T]
+type UpsertBuilder[T any] struct {
+	i               *Inserter[T]
+	conflictColumns []string
 }
 
-type OnDuplicateKey struct {
-	assigns []Assignable
+type Upsert struct {
+	assigns         []Assignable
+	conflictColumns []string
 }
 
-func (o *OnDuplicateKeyBuilder[T]) Update(assigns ...Assignable) *Inserter[T] {
-	o.i.onDuplicateKey = &OnDuplicateKey{
-		assigns: assigns,
+func (o *UpsertBuilder[T]) ConflictColumns(cols ...string) *UpsertBuilder[T] {
+	o.conflictColumns = cols
+	return o
+}
+
+func (o *UpsertBuilder[T]) Update(assigns ...Assignable) *Inserter[T] {
+	o.i.upsert = &Upsert{
+		assigns:         assigns,
+		conflictColumns: o.conflictColumns,
 	}
 
 	return o.i
@@ -32,7 +40,7 @@ type Inserter[T any] struct {
 	columns []string
 	db      *DB
 
-	onDuplicateKey *OnDuplicateKey
+	upsert *Upsert
 }
 
 func NewInserter[T any](db *DB) *Inserter[T] {
@@ -45,8 +53,8 @@ func NewInserter[T any](db *DB) *Inserter[T] {
 	}
 }
 
-func (i *Inserter[T]) OnDuplicateKey() *OnDuplicateKeyBuilder[T] {
-	return &OnDuplicateKeyBuilder[T]{
+func (i *Inserter[T]) Upsert() *UpsertBuilder[T] {
+	return &UpsertBuilder[T]{
 		i: i,
 	}
 }
@@ -122,8 +130,8 @@ func (i *Inserter[T]) Build() (*Query, error) {
 		i.sb.WriteByte(')')
 	}
 
-	if i.onDuplicateKey != nil {
-		if err := i.dialect.buildOnDuplicateKey(&i.builder, i.onDuplicateKey); err != nil {
+	if i.upsert != nil {
+		if err := i.dialect.buildUpsert(&i.builder, i.upsert); err != nil {
 			return nil, err
 		}
 	}
