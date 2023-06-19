@@ -2,7 +2,6 @@ package orm
 
 import (
 	"context"
-	"reflect"
 
 	"github.com/startdusk/go-libs/orm/internal/errs"
 )
@@ -119,14 +118,18 @@ func (i *Inserter[T]) Build() (*Query, error) {
 			i.sb.WriteByte(',')
 		}
 		i.sb.WriteByte('(')
+		val := i.db.creator(i.model, i.values[valIdx])
 		for idx, field := range fields {
 			if idx > 0 {
 				i.sb.WriteByte(',')
 			}
 			i.sb.WriteByte('?')
 			// 读取结构体的参数
-			val := reflect.ValueOf(i.values[valIdx]).Elem().FieldByName(field.GoName).Interface()
-			i.addArgs(val)
+			arg, err := val.Field(field.GoName)
+			if err != nil {
+				return nil, err
+			}
+			i.addArgs(arg)
 		}
 		i.sb.WriteByte(')')
 	}

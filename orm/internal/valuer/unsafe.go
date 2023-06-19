@@ -30,6 +30,18 @@ func NewUnsafeValue(model *model.Model, val any) Value {
 	}
 }
 
+// Field 返回字段对应的值
+func (u unsafeValue) Field(name string) (any, error) {
+	fd, ok := u.model.FieldMap[name]
+	if !ok {
+		return nil, errs.NewErrUnknownField(name)
+	}
+	ptr := unsafe.Pointer(uintptr(u.address) + fd.Offset)
+	val := reflect.NewAt(fd.Type, ptr).Elem()
+	return val.Interface(), nil
+}
+
+// SetColumns 设置新值
 func (u unsafeValue) SetColumns(rows *sql.Rows) error {
 	// 获取 查询的 columns
 	columns, err := rows.Columns()

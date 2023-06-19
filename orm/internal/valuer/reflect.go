@@ -12,7 +12,8 @@ type reflectValue struct {
 	model *model.Model
 
 	// val 对应 泛型 T 的指针
-	val any
+	// val any
+	val reflect.Value
 }
 
 // 确保类型变更 我们能得到通知
@@ -21,10 +22,20 @@ var _ Creator = NewReflectValue
 func NewReflectValue(model *model.Model, val any) Value {
 	return &reflectValue{
 		model: model,
-		val:   val,
+		val:   reflect.ValueOf(val).Elem(),
 	}
 }
 
+// Field 返回字段对应的值
+func (r reflectValue) Field(name string) (any, error) {
+	res := r.val.FieldByName(name)
+	if res == (reflect.Value{}) {
+		return nil, errs.NewErrUnknownField(name)
+	}
+	return res.Interface(), nil
+}
+
+// SetColumns 设置新值
 func (r reflectValue) SetColumns(rows *sql.Rows) error {
 	// 获取 查询的 columns
 	columns, err := rows.Columns()
@@ -55,7 +66,7 @@ func (r reflectValue) SetColumns(rows *sql.Rows) error {
 	}
 
 	// 把 scan 后的数据放到构造的entity中
-	valueElem := reflect.ValueOf(r.val).Elem()
+	valueElem := r.val
 	for i, colName := range columns {
 		// colName 是列名
 		fd, ok := r.model.ColumnMap[colName]
