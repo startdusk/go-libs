@@ -18,7 +18,7 @@ func TestDB(t *testing.T) {
 	db.Ping()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	tableName := "test_model_" + time.New().GoString()
+	tableName := "test_model_" + time.Now().GoString()
 	if _, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS `+ tableName +`(
 			id INTEGER PRIMARY KEY,
