@@ -38,18 +38,20 @@ type Inserter[T any] struct {
 
 	// INSERT 语句要插入的指定的列
 	columns []string
-	db      *DB
 
 	upsert *Upsert
+
+	sess Session
 }
 
-func NewInserter[T any](db *DB) *Inserter[T] {
+func NewInserter[T any](sess Session) *Inserter[T] {
+	core := sess.getCore()
 	return &Inserter[T]{
 		builder: builder{
-			dialect: db.dialect,
-			quoter:  db.dialect.quoter(),
+			core:   core,
+			quoter: core.dialect.quoter(),
 		},
-		db: db,
+		sess: sess,
 	}
 }
 
@@ -77,7 +79,7 @@ func (i *Inserter[T]) Build() (*Query, error) {
 	}
 
 	i.sb.WriteString("INSERT INTO ")
-	m, err := i.db.r.Get(i.values[0])
+	m, err := i.r.Get(i.values[0])
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +120,7 @@ func (i *Inserter[T]) Build() (*Query, error) {
 			i.sb.WriteByte(',')
 		}
 		i.sb.WriteByte('(')
-		val := i.db.creator(i.model, i.values[valIdx])
+		val := i.creator(i.model, i.values[valIdx])
 		for idx, field := range fields {
 			if idx > 0 {
 				i.sb.WriteByte(',')
@@ -155,7 +157,7 @@ func (i *Inserter[T]) Exec(ctx context.Context) Result {
 		result.err = err
 		return result
 	}
-	res, err := i.db.db.Exec(q.SQL, q.Args...)
+	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
 	result.res = res
 	result.err = err
 	return result

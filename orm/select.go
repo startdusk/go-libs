@@ -20,16 +20,17 @@ type Selector[T any] struct {
 	// 指定 select 的列
 	columns []Selectable
 
-	db *DB
+	sess Session
 }
 
-func NewSelector[T any](db *DB) *Selector[T] {
+func NewSelector[T any](sess Session) *Selector[T] {
+	core := sess.getCore()
 	return &Selector[T]{
 		builder: builder{
-			dialect: db.dialect,
-			quoter:  db.dialect.quoter(),
+			core:   core,
+			quoter: core.dialect.quoter(),
 		},
-		db: db,
+		sess: sess,
 	}
 }
 
@@ -50,7 +51,7 @@ func (s *Selector[T]) Where(where ...Predicate) *Selector[T] {
 
 func (s *Selector[T]) Build() (*Query, error) {
 	var err error
-	s.model, err = s.db.r.Get(new(T))
+	s.model, err = s.r.Get(new(T))
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		return nil, err
 	}
 
-	rows, err := s.db.db.QueryContext(ctx, q.SQL, q.Args...)
+	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +112,7 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	entity := new(T)
 	// 接口定义好之后, 就两件事情, 一个是利用新接口的方法改造上层
 	// 一个是提供不同的实现
-	val := s.db.creator(s.model, entity)
+	val := s.creator(s.model, entity)
 	err = val.SetColumns(rows)
 	return entity, err
 }
@@ -122,7 +123,7 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 		return nil, err
 	}
 
-	rows, err := s.db.db.QueryContext(ctx, q.SQL, q.Args...)
+	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {
 	var res []*T
 	for rows.Next() {
 		entity := new(T)
-		val := s.db.creator(s.model, entity)
+		val := s.creator(s.model, entity)
 		if err := val.SetColumns(rows); err != nil {
 			return nil, err
 		}

@@ -4,15 +4,13 @@ import (
 	"strings"
 
 	"github.com/startdusk/go-libs/orm/internal/errs"
-	"github.com/startdusk/go-libs/orm/model"
 )
 
 type builder struct {
-	sb      strings.Builder
-	args    []any
-	model   *model.Model
-	dialect Dialect
-	quoter  byte
+	core
+	sb     strings.Builder
+	args   []any
+	quoter byte
 }
 
 // buildColumn 构造列
