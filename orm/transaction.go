@@ -3,6 +3,7 @@ package orm
 import (
 	"context"
 	"database/sql"
+	"errors"
 )
 
 var (
@@ -38,4 +39,14 @@ func (t *Tx) Commit() error {
 
 func (t *Tx) Rollback() error {
 	return t.tx.Rollback()
+}
+
+// 尝试回滚, 如果此时事务已经提交了, 或者被回滚掉了, 那么
+// 就会得到sql.ErrTxDone错误, 这时候忽略这个错误就好
+func (t *Tx) RollbackIfNotCommit() error {
+	err := t.tx.Rollback()
+	if !errors.Is(err, sql.ErrTxDone) {
+		return err
+	}
+	return nil
 }

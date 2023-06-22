@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"github.com/startdusk/go-libs/orm/internal/valuer"
 
+	"github.com/startdusk/go-libs/orm/internal/errs"
 	"github.com/startdusk/go-libs/orm/model"
 )
 
@@ -37,6 +38,27 @@ func (db *DB) execContext(ctx context.Context, query string, args ...any) (sql.R
 
 func (db *DB) getCore() core {
 	return db.core
+}
+
+func (db *DB) DoTx(ctx context.Context, fn func(ctx context.Context, tx *Tx) error, opts *sql.TxOptions) (err error) {
+	tx, err := db.BeginTx(ctx, opts)
+	if err != nil {
+		return err
+	}
+
+	panicked := true
+	defer func() {
+		if panicked || err != nil {
+			rollbackErr := tx.Rollback()
+			err = errs.NewErrFailedToRollbackTx(err, rollbackErr, panicked)
+		} else {
+			err = tx.Commit()
+		}
+	}()
+	err = fn(ctx, tx)
+	// 执行过程中没有发生panic, 则标志位置为false
+	panicked = false
+	return err
 }
 
 func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {
