@@ -11,7 +11,7 @@ type MiddlewareBuilder struct {
 	logFunc func(query string, args []any)
 }
 
-func NewQueryLog(fn func(query string, args []any)) *MiddlewareBuilder {
+func NewMiddlewareBuilder(fn func(query string, args []any)) *MiddlewareBuilder {
 	return &MiddlewareBuilder{
 		logFunc: fn,
 	}

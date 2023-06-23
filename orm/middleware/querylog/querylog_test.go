@@ -15,7 +15,7 @@ import (
 func TestQueryLog(t *testing.T) {
 	var query string
 	var args []any
-	m := NewQueryLog(func(q string, as []any) {
+	m := NewMiddlewareBuilder(func(q string, as []any) {
 		query = q
 		args = as
 	})
