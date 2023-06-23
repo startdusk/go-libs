@@ -93,19 +93,42 @@ func (s *Selector[T]) Build() (*Query, error) {
 }
 
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
+	root := s.getHandler
+	for i := len(s.mdls) - 1; i >= 0; i-- {
+		root = s.mdls[i](root)
+	}
+
+	res := root(ctx, &QueryContext{
+		Type:    "SELECT",
+		Builder: s,
+	})
+	var t *T
+	if val, ok := res.Result.(*T); ok {
+		t = val
+	}
+	return t, res.Err
+}
+
+var _ Handler = (&Selector[any]{}).getHandler
+
+func (s *Selector[T]) getHandler(ctx context.Context, qc *QueryContext) *QueryResult {
+	qr := &QueryResult{}
 	q, err := s.Build()
 	if err != nil {
-		return nil, err
+		qr.Err = err
+		return qr
 	}
 
 	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
 	if err != nil {
-		return nil, err
+		qr.Err = err
+		return qr
 	}
 
 	if !rows.Next() {
 		// 返回要和sql包语义一致
-		return nil, ErrNoRows
+		qr.Err = ErrNoRows
+		return qr
 	}
 
 	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
@@ -114,7 +137,9 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	// 一个是提供不同的实现
 	val := s.creator(s.model, entity)
 	err = val.SetColumns(rows)
-	return entity, err
+	qr.Result = entity
+	qr.Err = err
+	return qr
 }
 
 func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {

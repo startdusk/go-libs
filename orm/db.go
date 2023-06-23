@@ -120,3 +120,11 @@ func DBWithDialect(dialect Dialect) DBOption {
 		db.dialect = dialect
 	}
 }
+
+func DBWithMiddlewares(mdls ...Middleware) DBOption {
+	return func(db *DB) {
+		// db.mdls = mdls
+		// 防止覆盖 使用 append
+		db.mdls = append(db.mdls, mdls...)
+	}
+}

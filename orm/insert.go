@@ -2,6 +2,7 @@ package orm
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/startdusk/go-libs/orm/internal/errs"
 )
@@ -151,14 +152,37 @@ func (i *Inserter[T]) Build() (*Query, error) {
 }
 
 func (i *Inserter[T]) Exec(ctx context.Context) Result {
-	var result Result
+	root := i.execHandler
+	for j := len(i.mdls) - 1; j >= 0; j-- {
+		root = i.mdls[j](root)
+	}
+
+	res := root(ctx, &QueryContext{
+		Type:    "INSERT",
+		Builder: i,
+	})
+	var sqlRes sql.Result
+	if val, ok := res.Result.(sql.Result); ok {
+		sqlRes = val
+	}
+	return Result{
+		res: sqlRes,
+		err: res.Err,
+	}
+}
+
+var _ Handler = (&Inserter[any]{}).execHandler
+
+func (i *Inserter[T]) execHandler(ctx context.Context, qc *QueryContext) *QueryResult {
+	qr := &QueryResult{}
 	q, err := i.Build()
 	if err != nil {
-		result.err = err
-		return result
+		qr.Err = err
+		qr.Result = Result{err: err}
+		return qr
 	}
 	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
-	result.res = res
-	result.err = err
-	return result
+	qr.Err = err
+	qr.Result = Result{res: res, err: err}
+	return qr
 }
