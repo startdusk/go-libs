@@ -50,10 +50,12 @@ func (s *Selector[T]) Where(where ...Predicate) *Selector[T] {
 }
 
 func (s *Selector[T]) Build() (*Query, error) {
-	var err error
-	s.model, err = s.r.Get(new(T))
-	if err != nil {
-		return nil, err
+	if s.model == nil {
+		var err error
+		s.model, err = s.r.Get(new(T))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	s.sb.WriteString("SELECT ")
@@ -93,6 +95,12 @@ func (s *Selector[T]) Build() (*Query, error) {
 }
 
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
+	var err error
+	s.model, err = s.r.Get(new(T))
+	if err != nil {
+		return nil, err
+	}
+
 	root := s.getHandler
 	for i := len(s.mdls) - 1; i >= 0; i-- {
 		root = s.mdls[i](root)
@@ -101,6 +109,7 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	res := root(ctx, &QueryContext{
 		Type:    "SELECT",
 		Builder: s,
+		Model:   s.model,
 	})
 	var t *T
 	if val, ok := res.Result.(*T); ok {

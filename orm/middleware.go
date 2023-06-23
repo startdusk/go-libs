@@ -2,6 +2,7 @@ package orm
 
 import (
 	"context"
+	"github.com/startdusk/go-libs/orm/model"
 )
 
 type QueryContext struct {
@@ -10,6 +11,8 @@ type QueryContext struct {
 
 	// Builder 使用的时候, 大多数情况下你需要转换到具体的类型才能篡改查询
 	Builder QueryBuilder
+
+	Model *model.Model
 }
 
 type Middleware func(next Handler) Handler

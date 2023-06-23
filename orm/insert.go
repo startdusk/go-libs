@@ -80,11 +80,15 @@ func (i *Inserter[T]) Build() (*Query, error) {
 	}
 
 	i.sb.WriteString("INSERT INTO ")
-	m, err := i.r.Get(i.values[0])
-	if err != nil {
-		return nil, err
+	m := i.model
+	if m == nil {
+		var err error
+		m, err = i.r.Get(i.values[0])
+		if err != nil {
+			return nil, err
+		}
+		i.model = m
 	}
-	i.model = m
 	// 拿到元数据, 拼接表名
 	i.quote(m.TableName)
 
@@ -152,6 +156,13 @@ func (i *Inserter[T]) Build() (*Query, error) {
 }
 
 func (i *Inserter[T]) Exec(ctx context.Context) Result {
+	var err error
+	var result Result
+	i.model, err = i.r.Get(new(T))
+	if err != nil {
+		result.err = err
+		return result
+	}
 	root := i.execHandler
 	for j := len(i.mdls) - 1; j >= 0; j-- {
 		root = i.mdls[j](root)
@@ -160,15 +171,15 @@ func (i *Inserter[T]) Exec(ctx context.Context) Result {
 	res := root(ctx, &QueryContext{
 		Type:    "INSERT",
 		Builder: i,
+		Model:   i.model,
 	})
 	var sqlRes sql.Result
 	if val, ok := res.Result.(sql.Result); ok {
 		sqlRes = val
 	}
-	return Result{
-		res: sqlRes,
-		err: res.Err,
-	}
+	result.res = sqlRes
+	result.err = res.Err
+	return result
 }
 
 var _ Handler = (&Inserter[any]{}).execHandler
