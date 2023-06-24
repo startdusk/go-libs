@@ -19,3 +19,12 @@ e2e:
 	@go clean -testcache
 	@go test ./... --tags=e2e -v
 
+.PHONY: dockerup
+dockerup:
+	docker compose up
+
+.PHONY: dockerdown
+dockerdown:
+	docker compose down
+
+
