@@ -8,15 +8,28 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-func TestInsert(t *testing.T) {
-	db, err := orm.Open("mysql", "root:root@tcp(localhost:13306)/integration_test")
-	require.NoError(t, err)
+func TestMySQLInsert(t *testing.T) {
+	suite.Run(t, &InsertSuite{
+		Suite{
+			driver: "mysql",
+			dsn:    "root:root@tcp(localhost:13306)/integration_test",
+		},
+	})
+}
 
+type InsertSuite struct {
+	Suite
+}
+
+func (i *InsertSuite) TestInsert() {
+	t := i.T()
+	db := i.db
 	cases := []struct {
 		name         string
 		i            *orm.Inserter[test.SimpleStruct]
@@ -24,20 +37,20 @@ func TestInsert(t *testing.T) {
 	}{
 		{
 			name:         "insert one",
-			i:            orm.NewInserter[test.SimpleStruct](db).Values(test.NewSimpleStruct(15)),
+			i:            orm.NewInserter[test.SimpleStruct](db).Values(test.NewSimpleStruct(45)),
 			wantAffected: 1,
 		},
 		{
 			name: "insert multiple",
 			i: orm.NewInserter[test.SimpleStruct](db).Values(
-				test.NewSimpleStruct(16),
-				test.NewSimpleStruct(17),
+				test.NewSimpleStruct(46),
+				test.NewSimpleStruct(47),
 			),
 			wantAffected: 2,
 		},
 		{
 			name:         "insert id",
-			i:            orm.NewInserter[test.SimpleStruct](db).Values(&test.SimpleStruct{Id: 18}),
+			i:            orm.NewInserter[test.SimpleStruct](db).Values(&test.SimpleStruct{ID: 48}),
 			wantAffected: 1,
 		},
 	}
@@ -53,3 +66,25 @@ func TestInsert(t *testing.T) {
 		})
 	}
 }
+
+// type SQLite3InsertSuite struct {
+// 	InsertSuite
+// }
+
+// func (i *SQLite3InsertSuite) SetupSuite() {
+// 	db, err := sql.Open(i.driver, i.dsn)
+// 	// 建表语句
+// 	db.ExecContext(context.Background(), "")
+// 	require.NoError(i.T(), err)
+// 	i.db, err = orm.OpenDB(db)
+// 	require.NoError(i.T(), err)
+// }
+
+// func TestSQLite3(t *testing.T) {
+// 	suite.Run(t, &SQLite3InsertSuite{
+// 		InsertSuite: {
+// 			driver: "sqlite3",
+// 			dsn:    "file:test.db?cache=shared&mode=memory",
+// 		},
+// 	})
+// }

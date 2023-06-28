@@ -10,7 +10,7 @@ import (
 
 // SimpleStruct 包含所有支持的类型
 type SimpleStruct struct {
-	Id      uint64
+	ID      uint64
 	Bool    bool
 	BoolPtr *bool
 
@@ -121,7 +121,7 @@ func (j JsonColumn) Value() (driver.Value, error) {
 
 func NewSimpleStruct(id uint64) *SimpleStruct {
 	return &SimpleStruct{
-		Id:             id,
+		ID:             id,
 		Bool:           true,
 		BoolPtr:        ToPtr[bool](false),
 		Int:            12,
