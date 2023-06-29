@@ -2,6 +2,7 @@ package orm
 
 import (
 	"context"
+	"database/sql"
 )
 
 type RawQuerier[T any] struct {
@@ -51,5 +52,24 @@ func (r RawQuerier[T]) GetMulti(ctx context.Context) (*T, error) {
 }
 
 func (r RawQuerier[T]) Exec(ctx context.Context) Result {
-	panic("")
+	var err error
+	var result Result
+	r.model, err = r.r.Get(new(T))
+	if err != nil {
+		result.err = err
+		return result
+	}
+
+	res := exec(ctx, r.sess, r.core, &QueryContext{
+		Type:    "RAW",
+		Builder: r,
+		Model:   r.model,
+	})
+	var sqlRes sql.Result
+	if val, ok := res.Result.(sql.Result); ok {
+		sqlRes = val
+	}
+	result.res = sqlRes
+	result.err = res.Err
+	return result
 }

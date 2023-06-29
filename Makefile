@@ -6,8 +6,11 @@ codeline:
 test: clean
 # 只跑单元测试
 	@go test ./... -v
+
+.PHONY: e2e
 # 单元测试和集成测试一起跑
 # @go test -tags=integration ./... -v
+	@go test -tags=integration -v
 
 .PHONY: clean
 clean:
@@ -20,7 +23,7 @@ clean:
 .PHONY: e2e
 e2e:
 	@go clean -testcache
-	@go test ./... --tags=e2e -v
+	@go test --tags=integration ./... -v
 
 .PHONY: dockerup
 dockerup:

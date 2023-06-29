@@ -163,12 +163,8 @@ func (i *Inserter[T]) Exec(ctx context.Context) Result {
 		result.err = err
 		return result
 	}
-	root := i.execHandler
-	for j := len(i.mdls) - 1; j >= 0; j-- {
-		root = i.mdls[j](root)
-	}
 
-	res := root(ctx, &QueryContext{
+	res := exec(ctx, i.sess, i.core, &QueryContext{
 		Type:    "INSERT",
 		Builder: i,
 		Model:   i.model,
@@ -182,18 +178,18 @@ func (i *Inserter[T]) Exec(ctx context.Context) Result {
 	return result
 }
 
-var _ Handler = (&Inserter[any]{}).execHandler
+// var _ Handler = (&Inserter[any]{}).execHandler
 
-func (i *Inserter[T]) execHandler(ctx context.Context, qc *QueryContext) *QueryResult {
-	qr := &QueryResult{}
-	q, err := i.Build()
-	if err != nil {
-		qr.Err = err
-		qr.Result = Result{err: err}
-		return qr
-	}
-	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
-	qr.Err = err
-	qr.Result = Result{res: res, err: err}
-	return qr
-}
+// func (i *Inserter[T]) execHandler(ctx context.Context, qc *QueryContext) *QueryResult {
+// 	qr := &QueryResult{}
+// 	q, err := i.Build()
+// 	if err != nil {
+// 		qr.Err = err
+// 		qr.Result = Result{err: err}
+// 		return qr
+// 	}
+// 	res, err := i.sess.execContext(ctx, q.SQL, q.Args...)
+// 	qr.Err = err
+// 	qr.Result = Result{res: res, err: err}
+// 	return qr
+// }

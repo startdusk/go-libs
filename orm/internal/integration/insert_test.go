@@ -28,6 +28,11 @@ type InsertSuite struct {
 	Suite
 }
 
+// 每次执行开始前, 执行这个函数
+func (i *InsertSuite) TearDownTest() {
+	orm.RawQuery[test.SimpleStruct](i.db, "TRUNCATE TABLE `simple_struct`").Exec(context.Background())
+}
+
 func (i *InsertSuite) TestInsert() {
 	t := i.T()
 	db := i.db

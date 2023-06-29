@@ -26,6 +26,11 @@ type SelectSuite struct {
 	Suite
 }
 
+// 每次执行完测试后执行
+func (s *SelectSuite) TearDownSuite() {
+	orm.RawQuery[test.SimpleStruct](s.db, "TRUNCATE TABLE `simple_struct`").Exec(context.Background())
+}
+
 func (s *SelectSuite) SetupSuite() {
 	s.Suite.SetupSuite()
 	res := orm.NewInserter[test.SimpleStruct](s.db).Values(test.NewSimpleStruct(103)).Exec(context.Background())

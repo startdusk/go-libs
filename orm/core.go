@@ -56,3 +56,27 @@ func getHandler[T any](ctx context.Context, sess Session, c core, qc *QueryConte
 	qr.Err = err
 	return qr
 }
+
+func execHandler(ctx context.Context, sess Session, c core, qc *QueryContext) *QueryResult {
+	qr := &QueryResult{}
+	q, err := qc.Builder.Build()
+	if err != nil {
+		qr.Err = err
+		qr.Result = Result{err: err}
+		return qr
+	}
+	res, err := sess.execContext(ctx, q.SQL, q.Args...)
+	qr.Err = err
+	qr.Result = Result{res: res, err: err}
+	return qr
+}
+
+func exec(ctx context.Context, sess Session, c core, qc *QueryContext) *QueryResult {
+	var root Handler = func(ctx context.Context, qc *QueryContext) *QueryResult {
+		return execHandler(ctx, sess, c, qc)
+	}
+	for i := len(c.mdls) - 1; i >= 0; i-- {
+		root = c.mdls[i](root)
+	}
+	return root(ctx, qc)
+}
