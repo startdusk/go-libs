@@ -3,6 +3,7 @@ package orm
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"github.com/startdusk/go-libs/orm/internal/valuer"
 
 	"github.com/startdusk/go-libs/orm/internal/errs"
@@ -59,6 +60,16 @@ func (db *DB) DoTx(ctx context.Context, fn func(ctx context.Context, tx *Tx) err
 	// 执行过程中没有发生panic, 则标志位置为false
 	panicked = false
 	return err
+}
+
+// Wait 等待数据库连接
+// 注意只能用于测试
+func (db *DB) Wait() error {
+	err := db.db.Ping()
+	for err == driver.ErrBadConn {
+		err = db.db.Ping()
+	}
+	return nil
 }
 
 func Open(driver string, dataSourceName string, opts ...DBOption) (*DB, error) {

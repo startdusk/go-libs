@@ -94,19 +94,70 @@ func (s *Selector[T]) Build() (*Query, error) {
 	}, nil
 }
 
+// func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
+// 	var err error
+// 	s.model, err = s.r.Get(new(T))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	root := s.getHandler
+// 	for i := len(s.mdls) - 1; i >= 0; i-- {
+// 		root = s.mdls[i](root)
+// 	}
+
+// 	res := root(ctx, &QueryContext{
+// 		Type:    "SELECT",
+// 		Builder: s,
+// 		Model:   s.model,
+// 	})
+// 	var t *T
+// 	if val, ok := res.Result.(*T); ok {
+// 		t = val
+// 	}
+// 	return t, res.Err
+// }
+
+// var _ Handler = (&Selector[any]{}).getHandler
+
+// func (s *Selector[T]) getHandler(ctx context.Context, qc *QueryContext) *QueryResult {
+// 	qr := &QueryResult{}
+// 	q, err := s.Build()
+// 	if err != nil {
+// 		qr.Err = err
+// 		return qr
+// 	}
+
+// 	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
+// 	if err != nil {
+// 		qr.Err = err
+// 		return qr
+// 	}
+
+// 	if !rows.Next() {
+// 		// 返回要和sql包语义一致
+// 		qr.Err = ErrNoRows
+// 		return qr
+// 	}
+
+// 	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
+// 	entity := new(T)
+// 	// 接口定义好之后, 就两件事情, 一个是利用新接口的方法改造上层
+// 	// 一个是提供不同的实现
+// 	val := s.creator(s.model, entity)
+// 	err = val.SetColumns(rows)
+// 	qr.Result = entity
+// 	qr.Err = err
+// 	return qr
+// }
+
 func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 	var err error
 	s.model, err = s.r.Get(new(T))
 	if err != nil {
 		return nil, err
 	}
-
-	root := s.getHandler
-	for i := len(s.mdls) - 1; i >= 0; i-- {
-		root = s.mdls[i](root)
-	}
-
-	res := root(ctx, &QueryContext{
+	res := get[T](ctx, s.sess, s.core, &QueryContext{
 		Type:    "SELECT",
 		Builder: s,
 		Model:   s.model,
@@ -116,39 +167,6 @@ func (s *Selector[T]) Get(ctx context.Context) (*T, error) {
 		t = val
 	}
 	return t, res.Err
-}
-
-var _ Handler = (&Selector[any]{}).getHandler
-
-func (s *Selector[T]) getHandler(ctx context.Context, qc *QueryContext) *QueryResult {
-	qr := &QueryResult{}
-	q, err := s.Build()
-	if err != nil {
-		qr.Err = err
-		return qr
-	}
-
-	rows, err := s.sess.queryContext(ctx, q.SQL, q.Args...)
-	if err != nil {
-		qr.Err = err
-		return qr
-	}
-
-	if !rows.Next() {
-		// 返回要和sql包语义一致
-		qr.Err = ErrNoRows
-		return qr
-	}
-
-	// 利用 columns 来解决 select 的列顺序 和 列字段类型的问题
-	entity := new(T)
-	// 接口定义好之后, 就两件事情, 一个是利用新接口的方法改造上层
-	// 一个是提供不同的实现
-	val := s.creator(s.model, entity)
-	err = val.SetColumns(rows)
-	qr.Result = entity
-	qr.Err = err
-	return qr
 }
 
 func (s *Selector[T]) GetMulti(ctx context.Context) ([]*T, error) {

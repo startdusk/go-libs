@@ -1,3 +1,4 @@
+//go:build integration
 package integration
 
 import (
@@ -27,7 +28,7 @@ type SelectSuite struct {
 
 func (s *SelectSuite) SetupSuite() {
 	s.Suite.SetupSuite()
-	res := orm.NewInserter[test.SimpleStruct](s.db).Values(test.NewSimpleStruct(102)).Exec(context.Background())
+	res := orm.NewInserter[test.SimpleStruct](s.db).Values(test.NewSimpleStruct(103)).Exec(context.Background())
 	require.NoError(s.T(), res.Err())
 }
 
@@ -41,8 +42,13 @@ func (s *SelectSuite) TestSuite() {
 	}{
 		{
 			name:    "get data",
-			s:       orm.NewSelector[test.SimpleStruct](db).Where(orm.C("ID").Eq(102)),
-			wantRes: test.NewSimpleStruct(102),
+			s:       orm.NewSelector[test.SimpleStruct](db).Where(orm.C("ID").Eq(103)),
+			wantRes: test.NewSimpleStruct(103),
+		},
+		{
+			name:    "no rows",
+			s:       orm.NewSelector[test.SimpleStruct](db).Where(orm.C("ID").Eq(1002)),
+			wantErr: orm.ErrNoRows,
 		},
 	}
 

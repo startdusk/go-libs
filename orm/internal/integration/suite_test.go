@@ -1,3 +1,4 @@
+//go:build integration
 package integration
 
 import (
@@ -17,6 +18,8 @@ type Suite struct {
 
 func (s *Suite) SetupSuite() {
 	db, err := orm.Open(s.driver, s.dsn)
+	require.NoError(s.T(), err)
+	err = db.Wait()
 	require.NoError(s.T(), err)
 	s.db = db
 }

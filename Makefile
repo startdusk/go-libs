@@ -4,7 +4,10 @@ codeline:
 	
 .PHONY: test
 test: clean
+# 只跑单元测试
 	@go test ./... -v
+# 单元测试和集成测试一起跑
+# @go test -tags=integration ./... -v
 
 .PHONY: clean
 clean:

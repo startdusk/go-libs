@@ -1,3 +1,4 @@
+//go:build integration
 package integration
 
 import (
@@ -37,20 +38,20 @@ func (i *InsertSuite) TestInsert() {
 	}{
 		{
 			name:         "insert one",
-			i:            orm.NewInserter[test.SimpleStruct](db).Values(test.NewSimpleStruct(45)),
+			i:            orm.NewInserter[test.SimpleStruct](db).Values(test.NewSimpleStruct(55)),
 			wantAffected: 1,
 		},
 		{
 			name: "insert multiple",
 			i: orm.NewInserter[test.SimpleStruct](db).Values(
-				test.NewSimpleStruct(46),
-				test.NewSimpleStruct(47),
+				test.NewSimpleStruct(56),
+				test.NewSimpleStruct(57),
 			),
 			wantAffected: 2,
 		},
 		{
 			name:         "insert id",
-			i:            orm.NewInserter[test.SimpleStruct](db).Values(&test.SimpleStruct{ID: 48}),
+			i:            orm.NewInserter[test.SimpleStruct](db).Values(&test.SimpleStruct{ID: 58}),
 			wantAffected: 1,
 		},
 	}
