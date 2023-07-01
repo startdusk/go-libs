@@ -299,47 +299,47 @@ func (s *Selector[T]) buildSelectColumns() error {
 	return nil
 }
 
-func (s *Selector[T]) buildColumn(col Column) error {
-	switch table := col.table.(type) {
-	case nil:
-		fd, ok := s.model.FieldMap[col.name]
-		if !ok {
-			return errs.NewErrUnknownField(col.name)
-		}
+// func (s *Selector[T]) buildColumn(col Column) error {
+// 	switch table := col.table.(type) {
+// 	case nil:
+// 		fd, ok := s.model.FieldMap[col.name]
+// 		if !ok {
+// 			return errs.NewErrUnknownField(col.name)
+// 		}
 
-		s.quote(fd.ColName)
-		// 字段使用别名
-		if col.alias != "" {
-			s.sb.WriteString(" AS ")
-			s.quote(col.alias)
-		}
-	case Table:
-		m, err := s.r.Get(table.entity)
-		if err != nil {
-			return err
-		}
+// 		s.quote(fd.ColName)
+// 		// 字段使用别名
+// 		if col.alias != "" {
+// 			s.sb.WriteString(" AS ")
+// 			s.quote(col.alias)
+// 		}
+// 	case Table:
+// 		m, err := s.r.Get(table.entity)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		fd, ok := m.FieldMap[col.name]
-		if !ok {
-			return errs.NewErrUnknownField(col.name)
-		}
+// 		fd, ok := m.FieldMap[col.name]
+// 		if !ok {
+// 			return errs.NewErrUnknownField(col.name)
+// 		}
 
-		if table.alias != "" {
-			s.quote(table.alias)
-			s.sb.WriteByte('.')
-		}
+// 		if table.alias != "" {
+// 			s.quote(table.alias)
+// 			s.sb.WriteByte('.')
+// 		}
 
-		s.quote(fd.ColName)
-		// 字段使用别名
-		if col.alias != "" {
-			s.sb.WriteString(" AS ")
-			s.quote(col.alias)
-		}
-	default:
-		return errs.NewErrUnsupportedTable(table)
-	}
-	return nil
-}
+// 		s.quote(fd.ColName)
+// 		// 字段使用别名
+// 		if col.alias != "" {
+// 			s.sb.WriteString(" AS ")
+// 			s.quote(col.alias)
+// 		}
+// 	default:
+// 		return errs.NewErrUnsupportedTable(table)
+// 	}
+// 	return nil
+// }
 
 func (s *Selector[T]) buildTable(table TableReference) error {
 	switch t := table.(type) {

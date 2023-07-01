@@ -14,12 +14,52 @@ type builder struct {
 }
 
 // buildColumn 构造列
-func (b *builder) buildColumn(fd string) error {
-	meta, ok := b.model.FieldMap[fd]
-	if !ok {
-		return errs.NewErrUnknownField(fd)
+func (b *builder) buildColumn(col Column) error {
+	// meta, ok := b.model.FieldMap[fd]
+	// if !ok {
+	// 	return errs.NewErrUnknownField(fd)
+	// }
+	// b.quote(meta.ColName)
+	// return nil
+
+	switch table := col.table.(type) {
+	case nil:
+		fd, ok := b.model.FieldMap[col.name]
+		if !ok {
+			return errs.NewErrUnknownField(col.name)
+		}
+
+		b.quote(fd.ColName)
+		// 字段使用别名
+		if col.alias != "" {
+			b.sb.WriteString(" AS ")
+			b.quote(col.alias)
+		}
+	case Table:
+		m, err := b.r.Get(table.entity)
+		if err != nil {
+			return err
+		}
+
+		fd, ok := m.FieldMap[col.name]
+		if !ok {
+			return errs.NewErrUnknownField(col.name)
+		}
+
+		if table.alias != "" {
+			b.quote(table.alias)
+			b.sb.WriteByte('.')
+		}
+
+		b.quote(fd.ColName)
+		// 字段使用别名
+		if col.alias != "" {
+			b.sb.WriteString(" AS ")
+			b.quote(col.alias)
+		}
+	default:
+		return errs.NewErrUnsupportedTable(table)
 	}
-	b.quote(meta.ColName)
 	return nil
 }
 
