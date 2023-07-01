@@ -14,8 +14,8 @@ type Selectable interface {
 
 type Selector[T any] struct {
 	builder
-	tableName string
-	where     []Predicate
+	table TableReference
+	where []Predicate
 
 	// 指定 select 的列
 	columns []Selectable
@@ -39,8 +39,8 @@ func (s *Selector[T]) Select(cols ...Selectable) *Selector[T] {
 	return s
 }
 
-func (s *Selector[T]) From(tableName string) *Selector[T] {
-	s.tableName = tableName
+func (s *Selector[T]) From(table TableReference) *Selector[T] {
+	s.table = table
 	return s
 }
 
@@ -64,17 +64,21 @@ func (s *Selector[T]) Build() (*Query, error) {
 	}
 	s.sb.WriteString(" FROM ")
 
-	if s.tableName == "" {
-
-		// 这里给表名加 ``
-		s.quote(s.model.TableName)
-	} else {
-		// 这里是用户传进来的表名, 用户应该保证它的正确性
-		// 如 `tableName`
-		// 如 `db`.`tableName`
-		// 我们不处理反引号的问题
-		s.sb.WriteString(s.tableName)
+	if err := s.buildTable(s.table); err != nil {
+		return nil, err
 	}
+
+	// if s.table == "" {
+
+	// 	// 这里给表名加 ``
+	// 	s.quote(s.model.TableName)
+	// } else {
+	// 	// 这里是用户传进来的表名, 用户应该保证它的正确性
+	// 	// 如 `table`
+	// 	// 如 `db`.`table`
+	// 	// 我们不处理反引号的问题
+	// 	s.sb.WriteString(s.table)
+	// }
 
 	if len(s.where) > 0 {
 		s.sb.WriteString(" WHERE ")
@@ -307,5 +311,50 @@ func (s *Selector[T]) buildColumn(col Column) error {
 		s.sb.WriteString(" AS ")
 		s.quote(col.alias)
 	}
+	return nil
+}
+
+func (s *Selector[T]) buildTable(table TableReference) error {
+	switch t := table.(type) {
+	case nil:
+		// 代表没有完全调用 From, 也就是最普通的形态
+		s.quote(s.model.TableName)
+	case Table:
+		// 拿到指定表的元数据
+		m, err := s.r.Get(t.entity)
+		if err != nil {
+			return err
+		}
+		s.quote(m.TableName)
+	case Join:
+		s.sb.WriteByte('(')
+		// 构造左边
+		if err := s.buildTable(t.left); err != nil {
+			return err
+		}
+		s.sb.WriteString(" " + t.typ + " ")
+		// 构造右边
+		if err := s.buildTable(t.right); err != nil {
+			return err
+		}
+		if len(t.using) > 0 {
+			// 拼接 USING (xx, xx)
+			s.sb.WriteString(" USING ")
+			s.sb.WriteByte('(')
+			for i, col := range t.using {
+				if i > 0 {
+					s.sb.WriteByte(',')
+				}
+				if err := s.buildColumn(Column{name: col}); err != nil {
+					return err
+				}
+			}
+			s.sb.WriteByte(')')
+		}
+		s.sb.WriteByte(')')
+	default:
+		return errs.NewErrUnsupportedTable(table)
+	}
+
 	return nil
 }

@@ -11,6 +11,10 @@ var (
 	ErrInsertZeroRows = errors.New("orm: 插入0行数据")
 )
 
+func NewErrUnsupportedTable(table any) error {
+	return fmt.Errorf("orm: 不支持的TableReference类型 %v", table)
+}
+
 func NewErrUnsupportedExpressionType(expr any) error {
 	return fmt.Errorf("orm: 不支持的表达式 %v", expr)
 }

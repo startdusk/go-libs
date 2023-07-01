@@ -15,6 +15,63 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func Test_Select_Join(t *testing.T) {
+	db := memoryDB(t)
+	type Order struct {
+		ID        int
+		UsingCol1 string
+		UsingCol2 string
+	}
+	type OrderDetail struct {
+		OrderID int
+		ItemID  int
+
+		UsingCol1 string
+		UsingCol2 string
+	}
+	type Item struct {
+		ID int
+	}
+
+	cases := []struct {
+		name      string
+		q         QueryBuilder
+		wantQuery *Query
+		wantErr   error
+	}{
+		{
+			name: "specify table",
+			q:    NewSelector[Order](db).From(TableOf(&OrderDetail{})),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM `order_detail`;",
+			},
+		},
+		{
+			name: "join using",
+			q: func() QueryBuilder {
+				t1 := TableOf(&Order{})
+				t2 := TableOf(&OrderDetail{})
+				t3 := t1.Join(t2).Using("UsingCol1", "UsingCol2")
+				return NewSelector[Order](db).From(t3)
+			}(),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM (`order` JOIN `order_detail` USING (`using_col1`,`using_col2`));",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			query, err := c.q.Build()
+			assert.Equal(t, c.wantErr, err)
+			if err != nil {
+				return
+			}
+			assert.Equal(t, c.wantQuery, query)
+		})
+	}
+}
+
 func Test_Selector_Select(t *testing.T) {
 	db := memoryDB(t)
 	cases := []struct {
@@ -126,33 +183,6 @@ func Test_Selector_Build(t *testing.T) {
 		wantQuery *Query
 		wantErr   error
 	}{
-		{
-			name:    "select_from",
-			builder: NewSelector[TestModel](db).From("`TEST_MODEL`"),
-			wantQuery: &Query{
-				SQL:  "SELECT * FROM `TEST_MODEL`;",
-				Args: nil,
-			},
-			wantErr: nil,
-		},
-		{
-			name:    "select_from_db",
-			builder: NewSelector[TestModel](db).From("`my_db`.`TEST_MODEL`"),
-			wantQuery: &Query{
-				SQL:  "SELECT * FROM `my_db`.`TEST_MODEL`;",
-				Args: nil,
-			},
-			wantErr: nil,
-		},
-		{
-			name:    "select_empty_from",
-			builder: NewSelector[TestModel](db).From(""),
-			wantQuery: &Query{
-				SQL:  "SELECT * FROM `test_model`;",
-				Args: nil,
-			},
-			wantErr: nil,
-		},
 		{
 			name:    "select_empty_where",
 			builder: NewSelector[TestModel](db).Where(),
