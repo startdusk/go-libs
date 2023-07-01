@@ -42,6 +42,20 @@ type Table struct {
 	alias  string
 }
 
+func (t Table) C(name string) Column {
+	return Column{
+		name:  name,
+		table: t,
+	}
+}
+
+func (t Table) As(alias string) Table {
+	return Table{
+		entity: t.entity,
+		alias:  alias,
+	}
+}
+
 func (t Table) Join(right TableReference) *JoinBuilder {
 	return &JoinBuilder{
 		left:  t,

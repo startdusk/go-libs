@@ -55,7 +55,19 @@ func Test_Select_Join(t *testing.T) {
 				return NewSelector[Order](db).From(t3)
 			}(),
 			wantQuery: &Query{
-				SQL: "SELECT * FROM (`order` JOIN `order_detail` USING (`using_col1`,`using_col2`));",
+				SQL: "SELECT * FROM (`order` JOIN `order_detail` USING (`using_col_1`,`using_col_2`));",
+			},
+		},
+		{
+			name: "join on",
+			q: func() QueryBuilder {
+				t1 := TableOf(&Order{}).As("t1")
+				t2 := TableOf(&OrderDetail{}).As("t2")
+				t3 := t1.Join(t2).On(t1.C("ID").Eq(t2.C("OrderID")))
+				return NewSelector[Order](db).From(t3)
+			}(),
+			wantQuery: &Query{
+				SQL: "SELECT * FROM (`order` AS `t1` JOIN `order_detail` AS `t2` ON `t1`.`id` = `t2`.`order_id`);",
 			},
 		},
 	}

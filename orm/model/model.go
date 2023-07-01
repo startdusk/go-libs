@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"unicode"
 )
 
 const (
@@ -220,17 +219,83 @@ func (r *registry) parseTag(tag reflect.StructTag) (map[string]string, error) {
 }
 
 // 驼峰名字符串转下划线命名
-func underscoreName(name string) string {
-	var buf []byte
-	for i, v := range name {
-		if unicode.IsUpper(v) {
-			if i != 0 && i < len(name)-1 && !unicode.IsUpper([]rune(name)[i+1]) {
-				buf = append(buf, '_')
-			}
-			buf = append(buf, byte(unicode.ToLower(v)))
-		} else {
-			buf = append(buf, byte(v))
+func underscoreName(str string) string {
+	var builder strings.Builder
+	// Normally, most underscore named strings have 1 to 2 separators, so 2 is added here
+	builder.Grow(len(str) + 2)
+
+	var prev byte
+	var prevUpper bool
+	for index, sl := 0, len(str); index < sl; index++ {
+		cur := str[index]
+		curUpper, curLower, curNum := isUpper(cur), isLower(cur), isNumber(cur)
+		if curUpper {
+			cur = toLower(cur)
 		}
+
+		if next, ok := nextVal(index, str); ok {
+			nextUpper, nextLower, nextNum := isUpper(next), isLower(next), isNumber(next)
+			if (curUpper && (nextLower || nextNum)) || (curLower && (nextUpper || nextNum)) || (curNum && (nextUpper || nextLower)) {
+				if prevUpper && curUpper && nextLower {
+					builder.WriteByte('_')
+				}
+				builder.WriteByte(cur)
+				if curLower || curNum || nextNum {
+					builder.WriteByte('_')
+				}
+
+				prev, prevUpper = cur, curUpper
+				continue
+			}
+		}
+		if !curUpper && !curLower && !curNum {
+			builder.WriteByte('_')
+		} else {
+			builder.WriteByte(cur)
+		}
+		prev, prevUpper = cur, curUpper
 	}
-	return string(buf)
+
+	_ = prev
+	_ = prevUpper
+
+	res := builder.String()
+
+	return res
+}
+
+func nextVal(index int, str string) (byte, bool) {
+	var b byte
+	next := index + 1
+	if next < len(str) {
+		b = str[next]
+		return b, true
+	}
+	return b, false
+}
+
+// ascii A -> a
+const transNum = 'a' - 'A'
+
+// snakeDelimiter for snake
+const snakeDelimiter = '_'
+
+func toUpper(b byte) byte {
+	return b - transNum
+}
+
+func toLower(b byte) byte {
+	return b + transNum
+}
+
+func isNumber(b byte) bool {
+	return '0' <= b && b <= '9'
+}
+
+func isUpper(b byte) bool {
+	return 'A' <= b && b <= 'Z'
+}
+
+func isLower(b byte) bool {
+	return 'a' <= b && b <= 'z'
 }

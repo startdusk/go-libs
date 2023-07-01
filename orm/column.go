@@ -5,6 +5,7 @@ func (c Column) selectable() {}
 func (c Column) expr() {}
 
 type Column struct {
+	table TableReference // 代表的是哪一个table(用于join查询, 需要知道是哪个表的字段)
 	name  string
 	alias string
 }
@@ -14,6 +15,7 @@ func (c Column) As(alias string) Column {
 	return Column{
 		name:  c.name,
 		alias: alias,
+		table: c.table,
 	}
 }
 
