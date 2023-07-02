@@ -10,7 +10,7 @@ type JoinBuilder struct {
 	typ   string
 }
 
-// t3 := t1.Join(t2).On(C("ID").Eq("RefID"))
+// t3 := t1.Join(t2).On(C("ID").EQ("RefID"))
 func (j *JoinBuilder) On(ps ...Predicate) Join {
 	return Join{
 		left:  j.left,
@@ -20,7 +20,7 @@ func (j *JoinBuilder) On(ps ...Predicate) Join {
 	}
 }
 
-// t3 := t1.Join(t2).Using(C("ID").Eq("RefID"))
+// t3 := t1.Join(t2).Using(C("ID").EQ("RefID"))
 func (j *JoinBuilder) Using(cols ...string) Join {
 	return Join{
 		left:  j.left,
@@ -90,7 +90,7 @@ type Join struct {
 	using []string
 }
 
-// t3 := t1.Join(t2).Using(C("ID").Eq("RefID"))
+// t3 := t1.Join(t2).Using(C("ID").EQ("RefID"))
 // t4 := t3.LeftJoin(t2)
 func (j Join) Join(right TableReference) *JoinBuilder {
 	return &JoinBuilder{

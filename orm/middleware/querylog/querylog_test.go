@@ -22,7 +22,7 @@ func TestQueryLog(t *testing.T) {
 
 	db, err := orm.Open("sqlite3", "file:test_orm_mid.db?cache=shared&mode=memory", orm.DBWithMiddlewares(m.Build()))
 	require.NoError(t, err)
-	_, _ = orm.NewSelector[TestModel](db).Where(orm.C("ID").Eq(12)).Get(context.Background())
+	_, _ = orm.NewSelector[TestModel](db).Where(orm.C("ID").EQ(12)).Get(context.Background())
 	assert.Equal(t, "SELECT * FROM `test_model` WHERE `id` = ?;", query)
 	assert.Equal(t, []any{12}, args)
 

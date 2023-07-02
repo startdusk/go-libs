@@ -3,9 +3,9 @@ package orm
 type op string
 
 const (
-	opEq  op = "="
-	opLt  op = "<"
-	opGt  op = ">"
+	opEQ  op = "="
+	opLT  op = "<"
+	opGT  op = ">"
 	opNot op = "NOT"
 	opAnd op = "AND"
 	opOr  op = "OR"
@@ -40,7 +40,7 @@ func Not(p Predicate) Predicate {
 	}
 }
 
-// C("id").Eq(12).And(C("name").Eq("Tom")) => id = 12 AND name = "Tom"
+// C("id").EQ(12).And(C("name").EQ("Tom")) => id = 12 AND name = "Tom"
 func (left Predicate) And(right Predicate) Predicate {
 	return Predicate{
 		left:  left,
@@ -49,7 +49,7 @@ func (left Predicate) And(right Predicate) Predicate {
 	}
 }
 
-// C("id").Eq(12).Or(C("name").Eq("Tom")) => id = 12 OR name = "Tom"
+// C("id").EQ(12).Or(C("name").EQ("Tom")) => id = 12 OR name = "Tom"
 func (left Predicate) Or(right Predicate) Predicate {
 	return Predicate{
 		left:  left,
