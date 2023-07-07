@@ -15,16 +15,31 @@ var (
 
 var _ Cache = new(BuildInMapCache)
 
+type BuildInMapCacheOption func(cache *BuildInMapCache)
+
+func BuildInMapCacheWithEvictedCallback(fn func(key string, val any)) BuildInMapCacheOption {
+	return func(cache *BuildInMapCache) {
+		cache.onEvicted = fn
+	}
+}
+
 type BuildInMapCache struct {
 	data  map[string]*Item
 	mutex sync.RWMutex
 	close chan struct{}
+
+	// 变更通知（回调函数)
+	onEvicted func(key string, val any)
 }
 
-func NewBuildInMapCache(interval time.Duration) *BuildInMapCache {
+func NewBuildInMapCache(interval time.Duration, opts ...BuildInMapCacheOption) *BuildInMapCache {
 	b := &BuildInMapCache{
 		data:  make(map[string]*Item, 100),
 		close: make(chan struct{}),
+	}
+
+	for _, opt := range opts {
+		opt(b)
 	}
 
 	// 轮询删除过期的key
@@ -47,7 +62,7 @@ func NewBuildInMapCache(interval time.Duration) *BuildInMapCache {
 					// 设置了过期时间, 且已经过期
 					// 频繁的创建 time.Now() 对象对性能影响很大
 					if !val.deadline.IsZero() && val.deadline.Before(now) {
-						delete(b.data, key)
+						b.delete(key)
 					}
 					i++
 				}
@@ -107,7 +122,7 @@ func (b *BuildInMapCache) Get(ctx context.Context, key string) (any, error) {
 			return nil, fmt.Errorf("%w, key: %s", errKeyNotFound, key)
 		}
 		if !val.deadline.IsZero() && val.deadline.Before(now) {
-			delete(b.data, key)
+			b.delete(key)
 			// 过期和找不到 用户不应该区分这个
 			return nil, fmt.Errorf("%w, key: %s", errKeyNotFound, key)
 		}
@@ -118,13 +133,24 @@ func (b *BuildInMapCache) Get(ctx context.Context, key string) (any, error) {
 func (b *BuildInMapCache) Delete(ctx context.Context, key string) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	delete(b.data, key)
+	b.delete(key)
 	return nil
 }
 
 func (b *BuildInMapCache) Close() error {
 	close(b.close)
 	return nil
+}
+
+func (b *BuildInMapCache) delete(key string) {
+	item, ok := b.data[key]
+	if !ok {
+		return
+	}
+	delete(b.data, key)
+	if b.onEvicted != nil {
+		b.onEvicted(key, item.val)
+	}
 }
 
 type Item struct {
