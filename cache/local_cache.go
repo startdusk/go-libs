@@ -80,11 +80,7 @@ func NewBuildInMapCache(interval time.Duration, opts ...BuildInMapCacheOption) *
 func (b *BuildInMapCache) Set(ctx context.Context, key string, val any, expiration time.Duration) error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	b.data[key] = &Item{
-		val:      val,
-		deadline: time.Now().Add(expiration),
-	}
-
+	return b.set(key, val, expiration)
 	// if expiration > 0 {
 	// 	// expiration == 0 是永不过期
 	// 	// 过期后删除
@@ -100,8 +96,6 @@ func (b *BuildInMapCache) Set(ctx context.Context, key string, val any, expirati
 	// 		}
 	// 	})
 	// }
-
-	return nil
 }
 
 func (b *BuildInMapCache) Get(ctx context.Context, key string) (any, error) {
@@ -151,6 +145,18 @@ func (b *BuildInMapCache) delete(key string) {
 	if b.onEvicted != nil {
 		b.onEvicted(key, item.val)
 	}
+}
+
+func (b *BuildInMapCache) set(key string, val any, expiration time.Duration) error {
+	var dl time.Time
+	if expiration > 0 {
+		dl = time.Now().Add(expiration)
+	}
+	b.data[key] = &Item{
+		val:      val,
+		deadline: dl,
+	}
+	return nil
 }
 
 type Item struct {
