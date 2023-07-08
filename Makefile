@@ -34,3 +34,6 @@ dockerdown:
 	docker compose down
 
 
+.PHONY: mockgen
+mockgen:
+	mockgen -destination=cache/mocks/mock_redis_cmdable.gen.go -package=mocks github.com/redis/go-redis/v9 Cmdable
