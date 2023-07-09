@@ -15,6 +15,7 @@ require (
 	go.opentelemetry.io/otel v1.15.0
 	go.opentelemetry.io/otel/trace v1.15.0
 	go.uber.org/mock v0.2.0
+	golang.org/x/sync v0.1.0
 )
 
 require (
