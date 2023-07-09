@@ -18,7 +18,7 @@ func NewBloomFilterCache(cache Cache, bf BloomFilter, loadFunc func(ctx context.
 				}
 				return loadFunc(ctx, key)
 			},
-		}
+		},
 	}
 }
 
