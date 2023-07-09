@@ -16,4 +16,5 @@ type Cache interface {
 	// 同时把删除的数据给返回
 	// Delete(key string) (any, error)
 
+	LoadAndDelete(ctx context.Context, key string) (any, error)
 }
