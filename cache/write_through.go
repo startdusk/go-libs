@@ -2,8 +2,8 @@ package cache
 
 import (
 	"context"
-	"time"
 	"log"
+	"time"
 )
 
 // write-through 先写数据库 再写缓存

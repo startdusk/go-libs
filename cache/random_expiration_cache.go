@@ -2,8 +2,8 @@ package cache
 
 import (
 	"context"
-	"time"
 	"math/rand"
+	"time"
 )
 
 // 缓存雪崩解决方案

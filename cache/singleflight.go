@@ -2,8 +2,9 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"time"
-	
+
 	"golang.org/x/sync/singleflight"
 )
 
@@ -17,14 +18,14 @@ func NewSingleflightCacheV1(cache Cache, loadFunc func(ctx context.Context, key 
 	g := &singleflight.Group{}
 	return &SingleflightCacheV1{
 		ReadThroughCache: ReadThroughCache{
-			cache: cache,
+			Cache: cache,
 			LoadFunc: func(ctx context.Context, key string) (any, error) {
 				val, err, _ := g.Do(key, func() (any, error) {
 					return loadFunc(ctx, key)
 				})
 				return val, err
 			},
-			Expiration: expiration
+			Expiration: expiration,
 		},
 	}
 }
@@ -51,4 +52,3 @@ func (r *SingleflightCacheV2) Get(ctx context.Context, key string) (any, error) 
 	}
 	return val, err
 }
-

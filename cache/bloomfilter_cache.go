@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 )
 
 type BloomFilterCache struct {
