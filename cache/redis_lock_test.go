@@ -13,7 +13,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-func Test_Client_Lock(t *testing.T) {
+func Test_Client_TryLock(t *testing.T) {
 	cases := []struct {
 		name     string
 		mock     func(ctrl *gomock.Controller) redis.Cmdable
