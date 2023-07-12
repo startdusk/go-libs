@@ -106,9 +106,9 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 			before: func(t *testing.T) {},
 			after:  func(t *testing.T) {},
 			lock: &Lock{
-				key:    "refresh_key1",
-				val:    "123",
-				client: rdb,
+				key:        "refresh_key1",
+				val:        "123",
+				client:     rdb,
 				expiration: time.Minute,
 			},
 			wantErr: ErrLockNotHold,
@@ -119,7 +119,7 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 				// 模拟你自己加的锁
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
-				res, err := rdb.Set(ctx, "refresh_key2", "123", 10 * time.Second).Result()
+				res, err := rdb.Set(ctx, "refresh_key2", "123", 10*time.Second).Result()
 				require.NoError(t, err)
 				assert.Equal(t, "OK", res)
 			},
@@ -131,14 +131,14 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 				require.NoError(t, err)
 				// 如果刷新成功了，过期时间是一分钟，即便考虑测试本身的时间，timeout > 10s
 				// 也就是，如果 timeout <= 10s 说明没有刷新成功
-				require.True(t, timeout <= 10 * time.Second)
+				require.True(t, timeout <= 10*time.Second)
 				_, err = rdb.Del(ctx, "refresh_key2").Result()
 				require.NoError(t, err)
 			},
 			lock: &Lock{
-				key:    "refresh_key2",
-				val:    "123",
-				client: rdb,
+				key:        "refresh_key2",
+				val:        "123",
+				client:     rdb,
 				expiration: time.Minute,
 			},
 			wantErr: ErrLockNotHold,
@@ -149,7 +149,7 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 				// 模拟别人的锁, 值不相同, 说明锁不是你的
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
-				res, err := rdb.Set(ctx, "refresh_key3", "123", 10 * time.Second).Result()
+				res, err := rdb.Set(ctx, "refresh_key3", "123", 10*time.Second).Result()
 				require.NoError(t, err)
 				assert.Equal(t, "OK", res)
 			},
@@ -160,14 +160,14 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 				timeout, err := rdb.TTL(ctx, "refresh_key3").Result()
 				require.NoError(t, err)
 				// 也就是，如果 timeout > 50s 说明刷新成功
-				require.True(t, timeout > 50 * time.Second)
+				require.True(t, timeout > 50*time.Second)
 				_, err = rdb.Del(ctx, "refresh_key3").Result()
 				require.NoError(t, err)
 			},
 			lock: &Lock{
-				key:    "refresh_key3",
-				val:    "123",
-				client: rdb,
+				key:        "refresh_key3",
+				val:        "123",
+				client:     rdb,
 				expiration: time.Minute,
 			},
 		},
