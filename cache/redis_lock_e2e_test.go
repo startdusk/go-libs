@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 	"time"
+	"fmt"
 
 	redis "github.com/redis/go-redis/v9"
 
@@ -13,12 +14,116 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var rdb redis.Cmdable
+
+func Test_Client_e2e_Lock(t *testing.T) {
+	cases := []struct {
+		name       string
+		key        string
+		before     func(t *testing.T)
+		after      func(t *testing.T)
+		expiration time.Duration
+		timeout    time.Duration
+		retry      RetryStrategy
+		wantErr    error
+		wantLock   *Lock
+	}{
+		{
+			name:   "locked",
+			before: func(t *testing.T) {},
+			after: func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				timeout, err := rdb.TTL(ctx, "lock_key1").Result()
+				require.NoError(t, err)
+				require.True(t, timeout >= 50*time.Second)
+				_, err = rdb.Del(ctx, "lock_key1").Result()
+				require.NoError(t, err)
+			},
+			key:        "lock_key1",
+			expiration: time.Minute,
+			timeout:    3 * time.Second,
+			retry: &FixedIntervalRetryStrategy{
+				Interval: time.Second,
+				MaxCnt:   10,
+			},
+		},
+		{
+			name:   "lock hold by other",
+			before: func(t *testing.T) {
+				// 模拟别人的锁
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				res, err := rdb.Set(ctx, "lock_key2", "other_lock_value2", 10*time.Second).Result()
+				require.NoError(t, err)
+				assert.Equal(t, "OK", res)
+			},
+			after: func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				res, err := rdb.GetDel(ctx, "lock_key2").Result()
+				require.NoError(t, err)
+				require.Equal(t, "other_lock_value2", res)
+			},
+			key:        "lock_key2",
+			expiration: time.Minute,
+			timeout:    3 * time.Second,
+			retry: &FixedIntervalRetryStrategy{
+				Interval: time.Second,
+				MaxCnt:   3,
+			},
+			wantErr: fmt.Errorf("redis-lock: 超过重试限制, %w", ErrFailedToPreemptLock),
+		},
+		{
+			name:   "retry and locked",
+			before: func(t *testing.T) {
+				// 模拟别人的锁, 到期释放，重试拿到锁
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				// 这里时间 3s 设小于重试的时间
+				res, err := rdb.Set(ctx, "lock_key3", "lock_value3", 3*time.Second).Result()
+				require.NoError(t, err)
+				assert.Equal(t, "OK", res)
+			},
+			after: func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				timeout, err := rdb.TTL(ctx, "lock_key3").Result()
+				require.NoError(t, err)
+				require.True(t, timeout >= 50*time.Second)
+				_, err = rdb.Del(ctx, "lock_key3").Result()
+				require.NoError(t, err)
+			},
+			key:        "lock_key3",
+			expiration: time.Minute,
+			timeout:    3 * time.Second,
+			retry: &FixedIntervalRetryStrategy{
+				Interval: time.Second,
+				MaxCnt:   10,
+			},
+		},
+	}
+
+	client := NewClient(rdb)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			c.before(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+			defer cancel()
+			lock, err := client.Lock(ctx, c.key, c.expiration, c.timeout, c.retry)
+			assert.Equal(t, c.wantErr, err)
+			if err == nil {
+				assert.Equal(t, c.key, lock.key)
+				assert.Equal(t, c.expiration, lock.expiration)
+				assert.NotEmpty(t, lock.val)
+				assert.NotNil(t, lock.client)
+			}
+			c.after(t)
+		})
+	}
+}
+
 func Test_Client_e2e_TryLock(t *testing.T) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
 	cases := []struct {
 		name       string
 		before     func(t *testing.T)
@@ -89,11 +194,6 @@ func Test_Client_e2e_TryLock(t *testing.T) {
 }
 
 func Test_Client_e2e_Refresh(t *testing.T) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
 	cases := []struct {
 		name    string
 		before  func(t *testing.T)
@@ -116,10 +216,10 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 		{
 			name: "lock hold by other",
 			before: func(t *testing.T) {
-				// 模拟你自己加的锁
+				// 模拟别人的锁, value不相同
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
-				res, err := rdb.Set(ctx, "refresh_key2", "123", 10*time.Second).Result()
+				res, err := rdb.Set(ctx, "refresh_key2", "other_refresh_value2", 10*time.Second).Result()
 				require.NoError(t, err)
 				assert.Equal(t, "OK", res)
 			},
@@ -137,7 +237,7 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 			},
 			lock: &Lock{
 				key:        "refresh_key2",
-				val:        "123",
+				val:        "refresh_value2",
 				client:     rdb,
 				expiration: time.Minute,
 			},
@@ -146,7 +246,7 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 		{
 			name: "refreshed",
 			before: func(t *testing.T) {
-				// 模拟别人的锁, 值不相同, 说明锁不是你的
+				// 模拟你自己加的锁，value和自己的相同
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 				res, err := rdb.Set(ctx, "refresh_key3", "123", 10*time.Second).Result()
@@ -187,11 +287,6 @@ func Test_Client_e2e_Refresh(t *testing.T) {
 }
 
 func Test_Client_e2e_Unlock(t *testing.T) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
 	cases := []struct {
 		name    string
 		before  func(t *testing.T)
@@ -213,7 +308,7 @@ func Test_Client_e2e_Unlock(t *testing.T) {
 		{
 			name: "unlocked",
 			before: func(t *testing.T) {
-				// 模拟你自己加的锁
+				// 模拟你自己加的锁，value和自己的相同
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 				res, err := rdb.Set(ctx, "unlock_key2", "123", time.Minute).Result()
@@ -271,5 +366,19 @@ func Test_Client_e2e_Unlock(t *testing.T) {
 			c.after(t)
 		})
 	}
+
+}
+
+func TestMain(m *testing.M) {
+	rdb = redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+	
+	defer func() {
+		rdb.FlushAll(context.Background())
+	}()
+	m.Run()
 
 }
