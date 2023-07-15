@@ -11,8 +11,8 @@ type RetryStrategy interface {
 
 type FixedIntervalRetryStrategy struct {
 	Interval time.Duration
-	MaxCnt int
-	cnt int
+	MaxCnt   int
+	cnt      int
 }
 
 func (f *FixedIntervalRetryStrategy) Next() (time.Duration, bool) {

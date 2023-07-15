@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	redis "github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -28,11 +30,43 @@ var luaLock string
 // Client 是对redis.Cmdable的封装
 type Client struct {
 	client redis.Cmdable
+	g      *singleflight.Group
 }
 
 func NewClient(client redis.Cmdable) *Client {
 	return &Client{
 		client: client,
+		g:      &singleflight.Group{},
+	}
+}
+
+// SingleflightLock 在并发非常高的情况下，可以考虑结合singleflight来进行优化。也就是说
+// 本地所有的goroutine自己先竞争一把，胜利者再去抢全局的分布式锁
+// 除了装逼 面试，实际情况我们不会用
+func (c *Client) SingleflightLock(ctx context.Context,
+	key string,
+	expiration time.Duration,
+	timeout time.Duration,
+	retry RetryStrategy,
+) (*Lock, error) {
+	for {
+		var flag bool = false // 标记是不是自己拿到了锁
+		resCh := c.g.DoChan(key, func() (any, error) {
+			flag = true
+			return c.Lock(ctx, key, expiration, timeout, retry)
+		})
+		select {
+		case res := <-resCh:
+			if flag { // 确实是自己拿到了锁
+				c.g.Forget(key) // 为了确保下一次还触发 DoChan, 让另一个goroutine执行
+				if res.Err != nil {
+					return nil, res.Err
+				}
+				return res.Val.(*Lock), nil
+			}
+		case <-ctx.Done(): // 监听超时
+			return nil, ctx.Err()
+		}
 	}
 }
 

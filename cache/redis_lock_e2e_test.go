@@ -4,9 +4,9 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
-	"fmt"
 
 	redis "github.com/redis/go-redis/v9"
 
@@ -49,7 +49,7 @@ func Test_Client_e2e_Lock(t *testing.T) {
 			},
 		},
 		{
-			name:   "lock hold by other",
+			name: "lock hold by other",
 			before: func(t *testing.T) {
 				// 模拟别人的锁
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -75,7 +75,7 @@ func Test_Client_e2e_Lock(t *testing.T) {
 			wantErr: fmt.Errorf("redis-lock: 超过重试限制, %w", ErrFailedToPreemptLock),
 		},
 		{
-			name:   "retry and locked",
+			name: "retry and locked",
 			before: func(t *testing.T) {
 				// 模拟别人的锁, 到期释放，重试拿到锁
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -375,7 +375,7 @@ func TestMain(m *testing.M) {
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
-	
+
 	defer func() {
 		rdb.FlushAll(context.Background())
 	}()
