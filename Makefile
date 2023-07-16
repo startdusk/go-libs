@@ -38,4 +38,6 @@ dockerdown:
 mockgen:
 	mockgen -destination=cache/mocks/mock_redis_cmdable.gen.go -package=mocks github.com/redis/go-redis/v9 Cmdable
 	mockgen -destination=micro/net/mocks/net_conn.gen.go -package=mocks net Conn
-	
+	mockgen -destination=micro/rpc/proxy_test.gen.go -package=rpc -source=micro/rpc/types.go Proxy
+
+
