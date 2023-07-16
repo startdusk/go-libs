@@ -2,17 +2,21 @@ package rpc
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"net"
 	"reflect"
 	"time"
+
+	"github.com/silenceper/pool"
 )
 
 // InitClientProxy 要为 GetByID 之类的函数类型字段赋值
 func InitClientProxy(addr string, service Service) error {
-	client := NewClient(addr)
+	client, err := NewClient(addr)
+	if err != nil {
+		return err
+	}
 	return setFuncField(service, client)
 }
 
@@ -86,13 +90,27 @@ func setFuncField(service Service, p Proxy) error {
 const numOfLengthBytes = 8
 
 type Client struct {
-	addr string
+	pool pool.Pool
 }
 
-func NewClient(addr string) *Client {
-	return &Client{
-		addr: addr,
+func NewClient(addr string) (*Client, error) {
+	p, err := pool.NewChannelPool(&pool.Config{
+		MaxCap:      30,
+		MaxIdle:     10,
+		IdleTimeout: time.Minute,
+		Factory: func() (any, error) {
+			return net.DialTimeout("tcp", addr, 3*time.Second)
+		},
+		Close: func(i any) error {
+			return i.(net.Conn).Close()
+		},
+	})
+	if err != nil {
+		return nil, err
 	}
+	return &Client{
+		pool: p,
+	}, nil
 }
 
 func (c *Client) Invoke(ctx context.Context, req *Request) (*Response, error) {
@@ -111,33 +129,19 @@ func (c *Client) Invoke(ctx context.Context, req *Request) (*Response, error) {
 }
 
 func (c *Client) Send(data []byte) ([]byte, error) {
-	conn, err := net.DialTimeout("tcp", c.addr, 3*time.Second)
+	val, err := c.pool.Get()
 	if err != nil {
 		return nil, err
 	}
+	conn := val.(net.Conn)
 	defer func() {
 		_ = conn.Close()
 	}()
 
-	reqLen := len(data)
-	req := make([]byte, reqLen+numOfLengthBytes)
-	binary.BigEndian.PutUint64(req[:numOfLengthBytes], uint64(reqLen))
-	copy(req[numOfLengthBytes:], data)
-
+	req := EncodeMsg(data)
 	if _, err := conn.Write(req); err != nil {
 		return nil, err
 	}
 
-	lenBytes := make([]byte, numOfLengthBytes)
-	if _, err := conn.Read(lenBytes); err != nil {
-		return nil, err
-	}
-
-	// 响应有多长
-	respLen := binary.BigEndian.Uint64(lenBytes)
-	resp := make([]byte, respLen)
-	if _, err := conn.Read(resp); err != nil {
-		return nil, err
-	}
-	return resp, nil
+	return ReadMsg(conn)
 }
