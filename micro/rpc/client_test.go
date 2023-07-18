@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	gomock "go.uber.org/mock/gomock"
 	"testing"
+
+	"github.com/startdusk/go-libs/micro/rpc/message"
 )
 
 func Test_setFuncField(t *testing.T) {
@@ -37,11 +39,11 @@ func Test_setFuncField(t *testing.T) {
 			name: "user serive",
 			mock: func(ctrl *gomock.Controller) Proxy {
 				p := NewMockProxy(ctrl)
-				p.EXPECT().Invoke(gomock.Any(), &Request{
+				p.EXPECT().Invoke(gomock.Any(), &message.Request{
 					ServiceName: "user-service",
 					MethodName:  "GetByID",
-					Arg:         []byte(`{"ID":123}`),
-				}).Return(&Response{
+					Data:        []byte(`{"ID":123}`),
+				}).Return(&message.Response{
 					Data: []byte(`{"Msg":"recieved 123"}`),
 				}, nil)
 				return p

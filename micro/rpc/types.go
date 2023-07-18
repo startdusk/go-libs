@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"github.com/startdusk/go-libs/micro/rpc/message"
 )
 
 type Service interface {
@@ -9,15 +10,5 @@ type Service interface {
 }
 
 type Proxy interface {
-	Invoke(ctx context.Context, req *Request) (*Response, error)
-}
-
-type Request struct {
-	ServiceName string
-	MethodName  string
-	Arg         []byte
-}
-
-type Response struct {
-	Data []byte
+	Invoke(ctx context.Context, req *message.Request) (*message.Response, error)
 }

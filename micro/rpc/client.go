@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/silenceper/pool"
+
+	"github.com/startdusk/go-libs/micro/rpc/message"
 )
 
 // InitClientProxy 要为 GetByID 之类的函数类型字段赋值
@@ -50,10 +52,10 @@ func setFuncField(service Service, p Proxy) error {
 						reflect.ValueOf(err),
 					}
 				}
-				req := &Request{
+				req := &message.Request{
 					ServiceName: service.Name(),
 					MethodName:  fieldTyp.Name,
-					Arg:         reqData,
+					Data:        reqData,
 				}
 
 				// 真正发起调用
@@ -113,7 +115,7 @@ func NewClient(addr string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Invoke(ctx context.Context, req *Request) (*Response, error) {
+func (c *Client) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -123,7 +125,7 @@ func (c *Client) Invoke(ctx context.Context, req *Request) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Response{
+	return &message.Response{
 		Data: resp,
 	}, nil
 }
