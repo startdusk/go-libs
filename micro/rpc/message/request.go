@@ -93,7 +93,7 @@ func DecodeReq(data []byte) *Request {
 	// 6.解Serializer
 	req.Serializer = data[14]
 
-	header := data[15:req.HeadLength] // 将 header 和 boyd 切割
+	header := data[15:req.HeadLength] // 将 header 和 body 切割
 
 	// 7.解ServiceName
 	index := bytes.IndexByte(header, spliter)
@@ -127,4 +127,19 @@ func DecodeReq(data []byte) *Request {
 	}
 
 	return req
+}
+
+func (req *Request) CalculateHeaderLength() {
+	length := 15 + len(req.ServiceName) + 1 + len(req.MethodName) + 1
+	for key, val := range req.Meta {
+		length += len(key)
+		length++ // 分隔符
+		length += len(val)
+		length++ // 分隔符
+	}
+	req.HeadLength = uint32(length)
+}
+
+func (req *Request) CalculateBodyLength() {
+	req.BodyLength = uint32(len(req.Data))
 }

@@ -56,38 +56,43 @@ func (s *Server) handleConn(conn net.Conn) error {
 		}
 
 		// 还原调用信息
-		var req message.Request
-		if err := json.Unmarshal(data, &req); err != nil {
-			return err
-		}
+		req := message.DecodeReq(data)
 
-		resp, err := s.Invoke(context.Background(), &req)
+		resp, err := s.Invoke(context.Background(), req)
 		if err != nil {
 			// 可能是你的业务error
 			// 暂时不知道怎么处理的error
+			resp.Error = []byte(err.Error())
+		}
+
+		resp.CalculateHeaderLength()
+		resp.CalculateBodyLength()
+
+		if _, err := conn.Write(message.EncodeResp(resp)); err != nil {
 			return err
 		}
-		res := EncodeMsg(resp.Data)
-
-		_, err = conn.Write(res)
-		return err
 	}
 }
 
 func (s *Server) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {
 	service, ok := s.services[req.ServiceName]
+	resp := &message.Response{
+		RequestID:  req.RequestID,
+		Version:    req.Version,
+		Compresser: req.Compresser,
+		Serializer: req.Serializer,
+	}
 	if !ok {
-		return nil, errors.New("rpc: 你要调用的服务不存在")
+		return resp, errors.New("rpc: 你要调用的服务不存在")
 	}
 
-	resp, err := service.invoke(ctx, req.MethodName, req.Data)
+	data, err := service.invoke(ctx, req.MethodName, req.Data)
+	resp.Data = data
 	if err != nil {
-		return nil, err
+		return resp, err
 	}
 
-	return &message.Response{
-		Data: resp,
-	}, nil
+	return resp, nil
 }
 
 type reflectionStub struct {
@@ -108,8 +113,20 @@ func (s *reflectionStub) invoke(ctx context.Context, methodName string, data []b
 	results := method.Call(in)
 	// results[0] 是返回值
 	// results[1] 是error
+	var err error
 	if results[1].Interface() != nil {
-		return nil, results[1].Interface().(error)
+		err = results[1].Interface().(error)
 	}
-	return json.Marshal(results[0].Interface())
+
+	var res []byte
+	if results[0].IsNil() {
+		return nil, err
+	} else {
+		var jsonErr error
+		res, jsonErr = json.Marshal(results[0].Interface())
+		if jsonErr != nil {
+			return nil, jsonErr
+		}
+	}
+	return res, err
 }

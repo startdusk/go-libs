@@ -3,7 +3,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	gomock "go.uber.org/mock/gomock"
 	"testing"
@@ -39,11 +38,14 @@ func Test_setFuncField(t *testing.T) {
 			name: "user serive",
 			mock: func(ctrl *gomock.Controller) Proxy {
 				p := NewMockProxy(ctrl)
-				p.EXPECT().Invoke(gomock.Any(), &message.Request{
+				req := &message.Request{
 					ServiceName: "user-service",
 					MethodName:  "GetByID",
 					Data:        []byte(`{"ID":123}`),
-				}).Return(&message.Response{
+				}
+				req.CalculateHeaderLength()
+				req.CalculateBodyLength()
+				p.EXPECT().Invoke(gomock.Any(), req).Return(&message.Response{
 					Data: []byte(`{"Msg":"recieved 123"}`),
 				}, nil)
 				return p
@@ -92,12 +94,15 @@ type GetByIDResp struct {
 	Msg string
 }
 
-type UserServiceServer struct{}
+type UserServiceServer struct {
+	Msg string
+	Err error
+}
 
 func (u UserServiceServer) GetByID(ctx context.Context, req *GetByIDReq) (*GetByIDResp, error) {
 	return &GetByIDResp{
-		Msg: fmt.Sprintf("recieved msg: %d", req.ID),
-	}, nil
+		Msg: u.Msg,
+	}, u.Err
 }
 
 func (u UserServiceServer) Name() string {
