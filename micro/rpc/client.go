@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net"
 	"reflect"
@@ -11,18 +10,16 @@ import (
 	"github.com/silenceper/pool"
 
 	"github.com/startdusk/go-libs/micro/rpc/message"
+	"github.com/startdusk/go-libs/micro/rpc/serialize"
+	"github.com/startdusk/go-libs/micro/rpc/serialize/json"
 )
 
-// InitClientProxy 要为 GetByID 之类的函数类型字段赋值
-func InitClientProxy(addr string, service Service) error {
-	client, err := NewClient(addr)
-	if err != nil {
-		return err
-	}
-	return setFuncField(service, client)
+// InitService
+func (c *Client) InitService(service Service) error {
+	return setFuncField(service, c, c.serializer)
 }
 
-func setFuncField(service Service, p Proxy) error {
+func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 	if service == nil {
 		return errors.New("rpc: 不支持nil")
 	}
@@ -44,7 +41,7 @@ func setFuncField(service Service, p Proxy) error {
 				// args[0] 是 context // context我们不会上传到服务端, 但context里面的数据可能会
 				ctx := args[0].Interface().(context.Context)
 				// args[1] 是 req
-				reqData, err := json.Marshal(args[1].Interface())
+				reqData, err := s.Encode(args[1].Interface())
 				if err != nil {
 					// 这里相当于返回 (类型的零值, error)
 					return []reflect.Value{
@@ -55,6 +52,7 @@ func setFuncField(service Service, p Proxy) error {
 				req := &message.Request{
 					ServiceName: service.Name(),
 					MethodName:  fieldTyp.Name,
+					Serializer:  s.Code(),
 					Data:        reqData,
 				}
 				req.CalculateHeaderLength()
@@ -76,7 +74,7 @@ func setFuncField(service Service, p Proxy) error {
 				}
 
 				if len(resp.Data) > 0 {
-					if err := json.Unmarshal(resp.Data, retVal.Interface()); err != nil {
+					if err := s.Decode(resp.Data, retVal.Interface()); err != nil {
 						return []reflect.Value{
 							retVal,
 							reflect.ValueOf(err),
@@ -109,10 +107,13 @@ func setFuncField(service Service, p Proxy) error {
 const numOfLengthBytes = 8
 
 type Client struct {
-	pool pool.Pool
+	pool       pool.Pool
+	serializer serialize.Serializer
 }
 
-func NewClient(addr string) (*Client, error) {
+type ClientOption func(c *Client)
+
+func NewClient(addr string, opts ...ClientOption) (*Client, error) {
 	p, err := pool.NewChannelPool(&pool.Config{
 		MaxCap:      30,
 		MaxIdle:     10,
@@ -127,9 +128,14 @@ func NewClient(addr string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
-		pool: p,
-	}, nil
+	c := &Client{
+		pool:       p,
+		serializer: &json.Serializer{},
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
 }
 
 func (c *Client) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {

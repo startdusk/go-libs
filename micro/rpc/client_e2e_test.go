@@ -22,7 +22,9 @@ func Test_InitClientProxy(t *testing.T) {
 	}()
 	time.Sleep(3 * time.Second)
 	usClient := &UserService{}
-	err := InitClientProxy(addr, usClient)
+	client, err := NewClient(addr)
+	require.NoError(t, err)
+	err = client.InitService(usClient)
 	require.NoError(t, err)
 
 	cases := []struct {

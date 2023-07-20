@@ -8,9 +8,12 @@ import (
 	"testing"
 
 	"github.com/startdusk/go-libs/micro/rpc/message"
+	"github.com/startdusk/go-libs/micro/rpc/serialize/json"
 )
 
 func Test_setFuncField(t *testing.T) {
+
+	s := &json.Serializer{}
 	cases := []struct {
 		name    string
 		service Service
@@ -41,6 +44,7 @@ func Test_setFuncField(t *testing.T) {
 				req := &message.Request{
 					ServiceName: "user-service",
 					MethodName:  "GetByID",
+					Serializer:  s.Code(),
 					Data:        []byte(`{"ID":123}`),
 				}
 				req.CalculateHeaderLength()
@@ -53,12 +57,13 @@ func Test_setFuncField(t *testing.T) {
 			service: &UserService{},
 		},
 	}
+
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			err := setFuncField(c.service, c.mock(ctrl))
+			err := setFuncField(c.service, c.mock(ctrl), s)
 			assert.Equal(t, c.wantErr, err)
 			if err != nil {
 				return
