@@ -68,8 +68,14 @@ func (s *Server) handleConn(conn net.Conn) error {
 
 		// 还原调用信息
 		req := message.DecodeReq(data)
+		ctx := context.Background()
+		if len(req.Meta) > 0 {
+			if oneway, ok := req.Meta["one-way"]; ok && oneway == "true" {
+				ctx = CtxWithOneway(ctx)
+			}
+		}
 
-		resp, err := s.Invoke(context.Background(), req)
+		resp, err := s.Invoke(ctx, req)
 		if err != nil {
 			// 可能是你的业务error
 			// 暂时不知道怎么处理的error
@@ -96,7 +102,14 @@ func (s *Server) Invoke(ctx context.Context, req *message.Request) (*message.Res
 	if !ok {
 		return resp, errors.New("rpc: 你要调用的服务不存在")
 	}
-
+	// 一次调用，不需要返回结果
+	if isOneway(ctx) {
+		go func() {
+			_, _ = service.invoke(ctx, req)
+		}()
+		// 也可以返回resp, nil
+		return resp, errors.New("micro: 微服务服务端 oneway 请求")
+	}
 	data, err := service.invoke(ctx, req)
 	resp.Data = data
 	if err != nil {

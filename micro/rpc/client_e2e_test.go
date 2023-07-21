@@ -12,6 +12,7 @@ import (
 	"github.com/startdusk/go-libs/micro/rpc/serialize/proto"
 )
 
+// 测试proto序列化
 func Test_InitServiceProto(t *testing.T) {
 	addr := ":8082"
 	server := NewServer()
@@ -81,6 +82,7 @@ func Test_InitServiceProto(t *testing.T) {
 	}
 }
 
+// 测试json序列化
 func Test_InitClientProxy(t *testing.T) {
 	addr := ":8081"
 	server := NewServer()
@@ -143,6 +145,55 @@ func Test_InitClientProxy(t *testing.T) {
 			resp, err := usClient.GetByID(context.Background(), &GetByIDReq{ID: 123})
 			assert.Equal(t, c.wantErr, err)
 			assert.Equal(t, c.wantResp, resp)
+		})
+	}
+}
+
+// 测试一次调用(服务端没有返回值)
+func Test_oneway(t *testing.T) {
+	addr := ":8083"
+	server := NewServer()
+	service := &UserServiceServer{}
+	server.RegisterService(service)
+	go func() {
+		err := server.Start("tcp", addr)
+		if err != nil {
+			t.Log(err)
+		}
+	}()
+	time.Sleep(3 * time.Second)
+	usClient := &UserService{}
+	client, err := NewClient(addr)
+	require.NoError(t, err)
+	err = client.InitService(usClient)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name     string
+		mock     func()
+		wantResp *GetByIDResp
+		wantErr  error
+	}{
+		{
+			name: "oneway",
+			mock: func() {
+				service.Err = errors.New("mock error")
+				service.Msg = "hello world"
+			},
+			wantResp: &GetByIDResp{},
+			wantErr:  errors.New("micro: 这是一个 oneway 调用, 你不应该处理任何结果"),
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			c.mock()
+			ctx := CtxWithOneway(context.Background())
+			resp, err := usClient.GetByID(ctx, &GetByIDReq{ID: 123})
+			assert.Equal(t, c.wantErr, err)
+			assert.Equal(t, c.wantResp, resp)
+			time.Sleep(2 * time.Second)
+			assert.Equal(t, "hello world", service.Msg)
 		})
 	}
 }
