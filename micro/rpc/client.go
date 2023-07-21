@@ -113,6 +113,12 @@ type Client struct {
 
 type ClientOption func(c *Client)
 
+func ClientWithSerializer(serializer serialize.Serializer) ClientOption {
+	return func(c *Client) {
+		c.serializer = serializer
+	}
+}
+
 func NewClient(addr string, opts ...ClientOption) (*Client, error) {
 	p, err := pool.NewChannelPool(&pool.Config{
 		MaxCap:      30,

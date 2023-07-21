@@ -1,0 +1,16 @@
+syntax="proto3";
+package users;
+option go_package = "/gen";
+
+message GetByIDReq {
+    int64 id = 1;
+}
+
+message GetByIDResp {
+    User user = 1;
+}
+
+message User {
+    int64 id = 1;
+    string name = 2;
+}

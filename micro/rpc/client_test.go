@@ -7,6 +7,7 @@ import (
 	gomock "go.uber.org/mock/gomock"
 	"testing"
 
+	"github.com/startdusk/go-libs/micro/proto/gen"
 	"github.com/startdusk/go-libs/micro/rpc/message"
 	"github.com/startdusk/go-libs/micro/rpc/serialize/json"
 )
@@ -85,6 +86,9 @@ type UserService struct {
 	// 类型是函数的字段，它不是方法(它不是定义在UserService上的方法)
 	// 本质上是一个字段
 	GetByID func(ctx context.Context, req *GetByIDReq) (*GetByIDResp, error)
+
+	// 测试proto协议, 由protoc生成go代码
+	GetByIDProto func(ctx context.Context, req *gen.GetByIDReq) (*gen.GetByIDResp, error)
 }
 
 func (u UserService) Name() string {
@@ -107,6 +111,15 @@ type UserServiceServer struct {
 func (u UserServiceServer) GetByID(ctx context.Context, req *GetByIDReq) (*GetByIDResp, error) {
 	return &GetByIDResp{
 		Msg: u.Msg,
+	}, u.Err
+}
+
+func (u UserServiceServer) GetByIDProto(ctx context.Context, req *gen.GetByIDReq) (*gen.GetByIDResp, error) {
+	return &gen.GetByIDResp{
+		User: &gen.User{
+			Id:   req.Id,
+			Name: u.Msg,
+		},
 	}, u.Err
 }
 
