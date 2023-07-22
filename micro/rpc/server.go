@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net"
 	"reflect"
+	"strconv"
+	"time"
 
 	"github.com/startdusk/go-libs/micro/rpc/message"
 
@@ -69,13 +71,20 @@ func (s *Server) handleConn(conn net.Conn) error {
 		// 还原调用信息
 		req := message.DecodeReq(data)
 		ctx := context.Background()
+		cancel := func() {}
 		if len(req.Meta) > 0 {
+			if deadlineStr, ok := req.Meta["deadline"]; ok {
+				if deadline, err := strconv.ParseInt(deadlineStr, 10, 64); err == nil {
+					ctx, cancel = context.WithDeadline(ctx, time.UnixMilli(deadline))
+				}
+			}
 			if oneway, ok := req.Meta["one-way"]; ok && oneway == "true" {
 				ctx = CtxWithOneway(ctx)
 			}
 		}
 
 		resp, err := s.Invoke(ctx, req)
+		cancel() // 调用已经结束, 执行取消deadline
 		if err != nil {
 			// 可能是你的业务error
 			// 暂时不知道怎么处理的error
@@ -129,7 +138,7 @@ func (s *reflectionStub) invoke(ctx context.Context, req *message.Request) ([]by
 	// 通过反射找到方法, 并且执行调用
 	method := s.value.MethodByName(req.MethodName)
 	in := make([]reflect.Value, 2)
-	in[0] = reflect.ValueOf(context.Background())
+	in[0] = reflect.ValueOf(ctx)
 	inReq := reflect.New(method.Type().In(1).Elem())
 	serializer, ok := s.serializers[req.Serializer]
 	if !ok {

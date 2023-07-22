@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	gomock "go.uber.org/mock/gomock"
 	"testing"
+	"time"
 
 	"github.com/startdusk/go-libs/micro/proto/gen"
 	"github.com/startdusk/go-libs/micro/rpc/message"
@@ -125,4 +126,25 @@ func (u UserServiceServer) GetByIDProto(ctx context.Context, req *gen.GetByIDReq
 
 func (u UserServiceServer) Name() string {
 	return "user-service"
+}
+
+type UserServiceServerTimeout struct {
+	t     *testing.T
+	sleep time.Duration
+	Msg   string
+	Err   error
+}
+
+func (u UserServiceServerTimeout) Name() string {
+	return "user-service"
+}
+
+func (u UserServiceServerTimeout) GetByID(ctx context.Context, req *GetByIDReq) (*GetByIDResp, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		u.t.Fatal("没有设置超时")
+	}
+	time.Sleep(u.sleep)
+	return &GetByIDResp{
+		Msg: u.Msg,
+	}, u.Err
 }

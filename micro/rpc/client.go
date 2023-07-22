@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/silenceper/pool"
@@ -50,8 +51,15 @@ func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 					}
 				}
 				var meta map[string]string
+				if deadline, ok := ctx.Deadline(); ok {
+					meta = map[string]string{"deadline": strconv.FormatInt(deadline.UnixMilli(), 10)}
+				}
 				if isOneway(ctx) {
-					meta = map[string]string{"one-way": "true"}
+					if meta == nil {
+						meta = map[string]string{"one-way": "true"}
+					} else {
+						meta["one-way"] = "true"
+					}
 				}
 				req := &message.Request{
 					ServiceName: service.Name(),
@@ -150,6 +158,30 @@ func NewClient(addr string, opts ...ClientOption) (*Client, error) {
 }
 
 func (c *Client) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	var (
+		resp *message.Response
+		err  error
+	)
+	ch := make(chan struct{})
+	go func() {
+		resp, err = c.doInvoke(ctx, req)
+		ch <- struct{}{}
+		close(ch)
+	}()
+	// 监听超时等待
+	// 这种写法的缺点是每次都会消耗一个channel
+	select {
+	case <-ch:
+		return resp, err
+	case <-ctx.Done(): // 超时
+		return nil, ctx.Err()
+	}
+}
+
+func (c *Client) doInvoke(ctx context.Context, req *message.Request) (*message.Response, error) {
 	data := message.EncodeReq(req)
 	resp, err := c.send(ctx, data)
 	if err != nil {
